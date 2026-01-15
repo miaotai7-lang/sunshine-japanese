@@ -3,10 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Komorebi - AI Japanese Learning</title>
+    <title>Sunshine - AI 日语学习</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#4f46e5">
     
+    <!-- 社交分享优化 (Open Graph) -->
+    <meta property="og:title" content="Sunshine - AI 日语学习">
+    <meta property="og:description" content="基于 AI 的日语学习神器：新闻、圣经、赞美诗，带你全方位领略日语之美。">
+    <meta property="og:image" content="https://cdn-icons-png.flaticon.com/512/3898/3898082.png">
+    <meta property="og:url" content="https://sunshinelearnjapanese.vercel.app">
+    <meta name="twitter:card" content="summary_large_image">
+
     <!-- iOS Support -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -69,7 +76,6 @@
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
     <script>
-      // 注册一个更加“正式”的 Service Worker，让 Chrome 认定这是一个合规的 PWA
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           const swCode = `
