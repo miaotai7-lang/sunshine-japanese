@@ -16,6 +16,16 @@ async function callProxyAPI(payload: any) {
   return await response.json();
 }
 
+// 深度清理 AI 返回的 JSON 字符串，防止标签显示为源码
+function cleanJsonResponse(text: string): string {
+  let cleaned = text.trim();
+  // 移除 Markdown 标识
+  cleaned = cleaned.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "");
+  // 强制还原 HTML 转义字符，这是解决手机端显示源码的关键
+  cleaned = cleaned.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');
+  return cleaned;
+}
+
 // 辅助函数：解码 Base64 音频
 function decode(base64: string) {
   const binaryString = atob(base64);
@@ -62,7 +72,7 @@ export async function playTTS(text: string) {
       source.start();
     }
   } catch (e) {
-    console.error("TTS Error via Proxy:", e);
+    console.error("TTS Error:", e);
   }
 }
 
@@ -75,7 +85,11 @@ export async function fetchLearningContent(category: LearningCategory, date: str
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `任务：抓取 ${date} 的日语学习内容（类别：${category}）。汉字必须标注 <ruby>。翻译必须使用简体中文。`,
+      contents: `任务：抓取 ${date} 的日语学习内容（类别：${category}）。
+      要求：
+      1. 返回 JSON 格式。
+      2. 汉字标注 <ruby> 标签。
+      3. 严禁转义 < 和 > 符号。`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -98,9 +112,10 @@ export async function fetchLearningContent(category: LearningCategory, date: str
       }
     });
 
-    const articles = JSON.parse(result.text || "[]").map((a: any, i: number) => ({ 
+    const jsonStr = cleanJsonResponse(result.text || "[]");
+    const articles = JSON.parse(jsonStr).map((a: any, i: number) => ({ 
       ...a, 
-      id: `${category}-${date}-${i}`, 
+      id: `${category}-${date}-${i}-${Math.random().toString(36).substr(2, 5)}`, 
       category, 
       date 
     }));
@@ -116,7 +131,7 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `任务：搜索并返回 10 首日语基督教赞美诗。歌词必须带 <ruby>。翻译必须使用简体中文。`,
+      contents: `搜索 10 首日语基督教赞美诗。汉字带 <ruby>。`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -135,7 +150,8 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
         }
       }
     });
-    return JSON.parse(result.text || "[]").map((s: any, i: number) => ({ ...s, id: `song-${offset + i}`, rank: offset + i + 1 }));
+    const jsonStr = cleanJsonResponse(result.text || "[]");
+    return JSON.parse(jsonStr).map((s: any, i: number) => ({ ...s, id: `song-${offset + i}`, rank: offset + i + 1 }));
   } catch (e) { return []; }
 }
 
@@ -143,7 +159,7 @@ export async function generateQuizzes(context: string) {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `基于内容生成10道JLPT练习题：${context}。解释请用简体中文。`,
+      contents: `生成 JLPT 练习题：${context}。`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -161,7 +177,8 @@ export async function generateQuizzes(context: string) {
         }
       }
     });
-    return JSON.parse(result.text || "[]");
+    const jsonStr = cleanJsonResponse(result.text || "[]");
+    return JSON.parse(jsonStr);
   } catch (e) { return []; }
 }
 
@@ -169,7 +186,7 @@ export async function fetchBibleVerses(excludeIds: string[] = []) {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `任务：提供10段日语圣经金句。汉字必须使用 <ruby>。翻译必须使用简体中文。排除 ID：${excludeIds.join(',')}`,
+      contents: `提供 10 段日语圣经金句。汉字使用 <ruby>。`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -190,7 +207,8 @@ export async function fetchBibleVerses(excludeIds: string[] = []) {
         }
       }
     });
-    const data = JSON.parse(result.text || "[]");
+    const jsonStr = cleanJsonResponse(result.text || "[]");
+    const data = JSON.parse(jsonStr);
     saveBibleVersesToCache(data);
     return data;
   } catch (e) { return []; }
