@@ -18,13 +18,13 @@ export const ArticleDetail: React.FC = () => {
   const [showFurigana, setShowFurigana] = useState(true);
   const [showTranslation, setShowTranslation] = useState(true);
   
-  // TTS 播放状态
   const [playingId, setPlayingId] = useState<string | null>(null);
   
-  // 影子跟读录音状态
+  // 录音相关状态
   const [recordings, setRecordings] = useState<Record<string, string>>({});
   const [isRecording, setIsRecording] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
@@ -34,46 +34,77 @@ export const ArticleDetail: React.FC = () => {
     }
     const collections = JSON.parse(localStorage.getItem('user_collection') || '[]');
     setStarred(new Set(collections.map((item: any) => String(item.id))));
-    
-    // 记录阅读活跃点
     recordActivity(5);
 
     return () => {
+      // 销毁时清理
       Object.values(recordings).forEach(url => URL.revokeObjectURL(url));
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     };
   }, [id, article]);
 
   if (!article) return <div className="p-10 text-center animate-pulse">正在载入离线语料...</div>;
 
   const handleTTS = async (text: string, id: string) => {
+    if (playingId) return;
     setPlayingId(id);
     await playTTS(text);
     setPlayingId(null);
   };
 
-  const startRecording = async (key: string) => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-      audioChunksRef.current = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = () => {
-        const url = URL.createObjectURL(new Blob(audioChunksRef.current, { type: 'audio/wav' }));
-        setRecordings(p => ({ ...p, [key]: url }));
-        stream.getTracks().forEach(t => t.stop());
-        recordActivity(2); // 跟读一次加 2 分
-      };
-      recorder.start();
-      setIsRecording(key);
-    } catch (e) { alert("麦克风启动失败，请检查权限。"); }
+  // 改进的录音逻辑：点击切换模式
+  const toggleRecording = async (key: string) => {
+    if (isRecording === key) {
+      // 停止录音
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecording(null);
+    } else {
+      // 开始录音
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = stream;
+        
+        // 自动选择支持的格式
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
+          ? 'audio/webm' 
+          : MediaRecorder.isTypeSupported('audio/mp4') 
+            ? 'audio/mp4' 
+            : '';
+
+        const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        mediaRecorderRef.current = recorder;
+        audioChunksRef.current = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+
+        recorder.onstop = () => {
+          const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
+          const url = URL.createObjectURL(blob);
+          setRecordings(p => ({ ...p, [key]: url }));
+          
+          // 关闭轨道释放资源
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+          }
+          recordActivity(2);
+        };
+
+        recorder.start();
+        setIsRecording(key);
+      } catch (e) {
+        console.error("Recording error:", e);
+        alert("无法访问麦克风，请确保已授予权限。");
+      }
+    }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current?.state === 'recording') {
-      mediaRecorderRef.current.stop();
-      setIsRecording(null);
-    }
+  const playRecording = (url: string) => {
+    const audio = new Audio(url);
+    audio.play().catch(e => console.error("Playback error:", e));
   };
 
   const toggleStar = (itemId: string, type: string, content: any) => {
@@ -97,7 +128,7 @@ export const ArticleDetail: React.FC = () => {
 
   return (
     <div className={`pb-24 animate-fadeIn ${showFurigana ? '' : 'hide-furigana'}`}>
-      <div className="flex justify-between items-center mb-6 gap-2 sticky top-0 bg-slate-50/90 backdrop-blur-md z-20 py-3">
+      <div className="flex justify-between items-center mb-6 gap-2 sticky top-0 bg-slate-50/90 backdrop-blur-md z-20 py-3 px-1">
         <button onClick={() => navigate(-1)} className="text-slate-400 text-sm font-bold"><i className="fa-solid fa-chevron-left mr-1"></i>返回</button>
         <div className="flex gap-2">
           <button onClick={() => setShowFurigana(!showFurigana)} className={`px-4 py-2 rounded-2xl text-[10px] font-black tracking-widest ${showFurigana ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-500'}`}>
@@ -137,30 +168,24 @@ export const ArticleDetail: React.FC = () => {
                   
                   <div className="flex items-center justify-between pt-4 border-t border-slate-50">
                     <div className="flex gap-3">
-                      {/* TTS 播放按钮 */}
                       <button 
                         onClick={() => handleTTS(cleanText(sentence), sId)} 
-                        className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${playingId === sId ? 'bg-indigo-600 text-white animate-pulse' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                        className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${playingId === sId ? 'bg-indigo-600 text-white animate-pulse' : 'bg-indigo-50 text-indigo-600'}`}
                       >
                         <i className={`fa-solid ${playingId === sId ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
                       </button>
                       
-                      {/* 影子跟读按钮 */}
                       <button 
-                        onMouseDown={() => startRecording(sId)} 
-                        onMouseUp={stopRecording}
-                        onTouchStart={() => startRecording(sId)}
-                        onTouchEnd={stopRecording}
-                        className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${isRecording === sId ? 'bg-rose-600 text-white scale-110 shadow-lg' : 'bg-rose-50 text-rose-600'}`}
+                        onClick={() => toggleRecording(sId)} 
+                        className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${isRecording === sId ? 'bg-rose-600 text-white animate-pulse shadow-lg scale-110' : 'bg-rose-50 text-rose-600'}`}
                       >
-                        <i className={`fa-solid ${isRecording === sId ? 'fa-microphone-lines animate-pulse' : 'fa-microphone'}`}></i>
+                        <i className={`fa-solid ${isRecording === sId ? 'fa-stop' : 'fa-microphone'}`}></i>
                       </button>
                       
-                      {/* 跟读回放按钮 */}
-                      {recordings[sId] && (
+                      {recordings[sId] && !isRecording && (
                         <button 
-                          onClick={() => new Audio(recordings[sId]).play()}
-                          className="w-11 h-11 flex items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100"
+                          onClick={() => playRecording(recordings[sId])}
+                          className="w-11 h-11 flex items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 active:scale-90"
                         >
                           <i className="fa-solid fa-play"></i>
                         </button>
