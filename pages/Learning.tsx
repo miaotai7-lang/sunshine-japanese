@@ -4,20 +4,27 @@ import { fetchLearningContent } from '../services/geminiService';
 import { Article, LearningCategory } from '../types';
 import { Link } from 'react-router-dom';
 
+// 辅助函数：如果字段不该有 HTML 但 AI 吐了，可以手动剥离，或者兼容渲染
+const formatSummary = (text: string) => {
+  if (!text) return "";
+  // 剥离可能存在的干扰标签，或者确保安全渲染
+  return text.trim();
+};
+
 export const Learning: React.FC = () => {
   const [activeTab, setActiveTab] = useState<LearningCategory>('news');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchingMore, setFetchingMore] = useState(false);
-  const [loadingStep, setLoadingStep] = useState(0); // 0: 搜索, 1: 翻译, 2: 假名标注
+  const [loadingStep, setLoadingStep] = useState(0); 
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const steps = [
-    "正在从 NHK 抓取今日头条...",
-    "正在进行深度中文意译...",
-    "正在为汉字标注精准假名...",
-    "即将完成，准备呈现学习内容..."
+    "正在从可靠源抓取今日内容...",
+    "正在进行精准中文意译...",
+    "正在标注日语假名...",
+    "即将完成..."
   ];
 
   const loadData = async (isAppend: boolean = false) => {
@@ -34,7 +41,6 @@ export const Learning: React.FC = () => {
       if (isAppend) setArticles(prev => [...prev, ...data]);
       else setArticles(data);
       
-      // 策略：预取逻辑
       if (!isAppend && data.length > 0) {
         prefetchOtherCategories();
       }
@@ -47,12 +53,10 @@ export const Learning: React.FC = () => {
     }
   };
 
-  // 预取函数：在当前分类加载完后，静默加载其他两个分类
   const prefetchOtherCategories = async () => {
     const categories: LearningCategory[] = ['news', 'forum', 'trending'];
     for (const cat of categories) {
       if (cat !== activeTab) {
-        // fetchLearningContent 内部会自动检查缓存，已有的不会重抓
         fetchLearningContent(cat, selectedDate, false).catch(() => {});
       }
     }
@@ -122,14 +126,15 @@ export const Learning: React.FC = () => {
               <div className="absolute inset-0 flex items-center justify-center"><i className="fa-solid fa-sparkles text-indigo-400 animate-pulse"></i></div>
             </div>
             <p className="text-slate-800 font-black text-sm mb-2 px-6">{steps[loadingStep]}</p>
-            <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase">AI is gathering data for you</p>
+            <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase text-center">AI is gathering data for you</p>
           </div>
         ) : articles.length > 0 ? (
           articles.map((article) => (
             <Link key={article.id} to={`/learning/${article.id}`} state={{ article }} className="block bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all animate-fadeIn relative overflow-hidden group">
               <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-50 group-hover:bg-indigo-400 transition-colors"></div>
               <h3 className="font-bold text-lg mb-3 Japanese-text text-slate-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: article.title }}></h3>
-              <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed font-medium">{article.summary}</p>
+              {/* 使用 dangerouslySetInnerHTML 以防 summary 里包含意外的 ruby，但通过样式控制其不显眼 */}
+              <div className="text-slate-400 text-xs line-clamp-2 leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: formatSummary(article.summary) }}></div>
               <div className="mt-4 flex items-center gap-2">
                 <span className="text-[8px] bg-slate-50 text-slate-400 px-2 py-0.5 rounded font-black uppercase tracking-tighter">Read More</span>
               </div>
