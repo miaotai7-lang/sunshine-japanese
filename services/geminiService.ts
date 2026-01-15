@@ -77,29 +77,31 @@ export async function playTTS(text: string) {
   }
 }
 
+// 核心系统指令：强制中文
+const MANDATORY_CHINESE_INSTRUCTION = `You are a Japanese-Chinese translation expert. 
+CRITICAL RULE: 
+- ALL translations, summaries, explanations, meanings, and points MUST BE IN SIMPLIFIED CHINESE ONLY.
+- ABSOLUTELY NO ENGLISH allowed in any field. 
+- ONLY the Japanese source text can contain Japanese characters. 
+- Use <ruby> tags ONLY for Japanese text. 
+- Plain text for Simplified Chinese.`;
+
 export async function fetchLearningContent(category: LearningCategory, date: string, isAppend: boolean = false): Promise<Article[]> {
   const cached = getArticlesByDateAndCategory(date, category);
   if (!isAppend && cached.length > 0) return cached;
 
   let sourceInstruction = "";
   if (category === 'news') sourceInstruction = "Source: NHK News Web Easy. Get 3 latest easy-to-read news.";
-  else if (category === 'forum') sourceInstruction = "Source: Yahoo!知恵袋 or 5ch summaries. Get 3 interesting discussions.";
-  else sourceInstruction = "Source: Google Trends Japan or Twitter Trends JP. Get 3 hot keywords with explanations.";
+  else if (category === 'forum') sourceInstruction = "Source: Yahoo!知恵袋. Get 3 interesting discussions.";
+  else sourceInstruction = "Source: Google Trends Japan. Get 3 hot keywords.";
 
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `Task: Rapidly fetch Japanese learning content for ${date}.
-      Category: ${category}.
-      Strict Language & Formatting Rules:
-      1. ${sourceInstruction}
-      2. Limit output to exactly 3 items.
-      3. ONLY use <ruby> tags for Japanese text fields.
-      4. STRIP all HTML and <ruby> tags from Chinese fields.
-      5. MANDATORY: ALL translations, meanings, summaries, and explanations MUST BE IN SIMPLIFIED CHINESE ONLY. 
-      6. ABSOLUTELY NO ENGLISH TRANSLATIONS OR TEXT ALLOWED IN ANY FIELD except the original Japanese source text.
-      7. Strict JSON format.`,
+      contents: `Fetch Japanese learning content for ${date}. Category: ${category}. ${sourceInstruction}
+      Reminder: Translation MUST be Simplified Chinese. No English.`,
       config: {
+        systemInstruction: MANDATORY_CHINESE_INSTRUCTION,
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
@@ -108,13 +110,13 @@ export async function fetchLearningContent(category: LearningCategory, date: str
             type: "OBJECT",
             properties: {
               title: { type: "STRING", description: "Japanese title with <ruby>" },
-              summary: { type: "STRING", description: "Plain text summary in Simplified Chinese" },
-              content: { type: "STRING", description: "Full content in Japanese with <ruby>" },
-              sentences: { type: "ARRAY", items: { type: "STRING" }, description: "Individual sentences in Japanese with <ruby>" },
-              translations: { type: "ARRAY", items: { type: "STRING" }, description: "Translations in Simplified Chinese ONLY. NO ENGLISH." },
+              summary: { type: "STRING", description: "Simplified Chinese plain text summary" },
+              content: { type: "STRING", description: "Full Japanese text with <ruby>" },
+              sentences: { type: "ARRAY", items: { type: "STRING" }, description: "Japanese sentences with <ruby>" },
+              translations: { type: "ARRAY", items: { type: "STRING" }, description: "Translations of each sentence in SIMPLIFIED CHINESE ONLY. NO ENGLISH." },
               level: { type: "STRING" },
-              vocabulary: { type: "ARRAY", items: { type: "OBJECT", properties: { word: { type: "STRING" }, reading: { type: "STRING" }, meaning: { type: "STRING", description: "Meaning in Simplified Chinese ONLY" } } } },
-              grammar: { type: "ARRAY", items: { type: "OBJECT", properties: { point: { type: "STRING" }, explanation: { type: "STRING", description: "Explanation in Simplified Chinese ONLY" }, example: { type: "STRING" } } } }
+              vocabulary: { type: "ARRAY", items: { type: "OBJECT", properties: { word: { type: "STRING" }, reading: { type: "STRING" }, meaning: { type: "STRING", description: "Meaning in SIMPLIFIED CHINESE ONLY" } } } },
+              grammar: { type: "ARRAY", items: { type: "OBJECT", properties: { point: { type: "STRING" }, explanation: { type: "STRING", description: "Explanation in SIMPLIFIED CHINESE ONLY" }, example: { type: "STRING" } } } }
             }
           }
         }
@@ -140,12 +142,9 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `Search 5 Japanese Christian hymns. 
-      Instructions:
-      1. Japanese lyrics MUST use <ruby>. 
-      2. The 'translation' field MUST use PLAIN TEXT SIMPLIFIED CHINESE ONLY. 
-      3. ABSOLUTELY NO ENGLISH allowed.`,
+      contents: `Find 5 Japanese Christian hymns. Translation field MUST be Simplified Chinese.`,
       config: {
+        systemInstruction: MANDATORY_CHINESE_INSTRUCTION,
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
@@ -155,8 +154,8 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
             properties: {
               title: { type: "STRING" },
               artist: { type: "STRING" },
-              lyrics: { type: "STRING" },
-              translation: { type: "STRING", description: "Lyrics translated to Simplified Chinese ONLY" },
+              lyrics: { type: "STRING", description: "Japanese lyrics with <ruby>" },
+              translation: { type: "STRING", description: "SIMPLIFIED CHINESE translation only" },
               youtubeUrl: { type: "STRING" }
             }
           }
@@ -172,12 +171,9 @@ export async function fetchBibleVerses(excludeIds: string[] = []) {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `Provide 5 Japanese Bible verses.
-      Instructions:
-      1. Use <ruby> only for Japanese text. 
-      2. All translation and vocabulary meaning fields MUST be in PLAIN TEXT SIMPLIFIED CHINESE. 
-      3. NO ENGLISH allowed in any translation field.`,
+      contents: `Provide 5 Japanese Bible verses. All translations MUST be Simplified Chinese.`,
       config: {
+        systemInstruction: MANDATORY_CHINESE_INSTRUCTION,
         responseMimeType: "application/json",
         responseSchema: {
           type: "ARRAY",
@@ -187,10 +183,10 @@ export async function fetchBibleVerses(excludeIds: string[] = []) {
               id: { type: "STRING" },
               reference: { type: "STRING" },
               japaneseText: { type: "STRING" },
-              chineseTranslation: { type: "STRING", description: "Simplified Chinese ONLY" },
+              chineseTranslation: { type: "STRING", description: "Simplified Chinese translation" },
               sentences: { type: "ARRAY", items: { type: "STRING" } },
-              translations: { type: "ARRAY", items: { type: "STRING" }, description: "Simplified Chinese translations only" },
-              vocabulary: { type: "ARRAY", items: { type: "OBJECT", properties: { word: { type: "STRING" }, reading: { type: "STRING" }, meaning: { type: "STRING", description: "Meaning in Simplified Chinese ONLY" } } } },
+              translations: { type: "ARRAY", items: { type: "STRING" }, description: "Simplified Chinese ONLY" },
+              vocabulary: { type: "ARRAY", items: { type: "OBJECT", properties: { word: { type: "STRING" }, reading: { type: "STRING" }, meaning: { type: "STRING", description: "Simplified Chinese ONLY" } } } },
               grammar: { type: "ARRAY", items: { type: "OBJECT", properties: { point: { type: "STRING" }, explanation: { type: "STRING", description: "Simplified Chinese ONLY" }, example: { type: "STRING" } } } }
             }
           }
@@ -208,12 +204,9 @@ export async function generateQuizzes(context: string): Promise<QuizQuestion[]> 
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `Generate 5 JLPT practice questions. 
-      Instructions:
-      1. <ruby> for Japanese options/question. 
-      2. The 'explanation' field MUST be in PLAIN TEXT SIMPLIFIED CHINESE ONLY. 
-      3. ABSOLUTELY NO ENGLISH.`,
+      contents: `Generate 5 JLPT questions. Explanations must be SIMPLIFIED CHINESE.`,
       config: {
+        systemInstruction: MANDATORY_CHINESE_INSTRUCTION,
         responseMimeType: "application/json",
         responseSchema: {
           type: "ARRAY",
@@ -224,7 +217,7 @@ export async function generateQuizzes(context: string): Promise<QuizQuestion[]> 
               question: { type: "STRING" },
               options: { type: "ARRAY", items: { type: "STRING" } },
               correctAnswer: { type: "NUMBER" },
-              explanation: { type: "STRING", description: "Detailed explanation in Simplified Chinese ONLY" },
+              explanation: { type: "STRING", description: "Simplified Chinese explanation ONLY. NO ENGLISH." },
               audioText: { type: "STRING" }
             }
           }
