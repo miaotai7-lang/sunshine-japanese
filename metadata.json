@@ -1,0 +1,8 @@
+{
+  "name": "Sunshine- AI Japanese Learning",
+  "description": "A comprehensive Japanese learning platform with AI-curated news, adaptive JLPT quizzes, Ebbinghaus-based spaced repetition, and music learning.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
