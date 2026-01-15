@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { JLPTLevel, Article, QuizQuestion, Song, BibleVerse, LearningCategory } from "../types";
+import { JLPTLevel, Article, Song, BibleVerse, LearningCategory } from "../types";
 import { saveArticlesToCache, saveBibleVersesToCache, getArticlesByDateAndCategory } from "./cacheService";
 
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
