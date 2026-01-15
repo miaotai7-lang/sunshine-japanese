@@ -1,0 +1,18 @@
+{
+  "short_name": "Sunshine",
+  "name": "Sunshine - AI 日语学习",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3898/3898082.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#f8fafc",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#4f46e5",
+  "description": "基于 AI 的全方位日语学习平台"
+}
