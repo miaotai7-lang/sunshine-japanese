@@ -24,13 +24,12 @@ export default async function handler(req: any, res: any) {
       config: genConfig,
     });
 
-    // 关键修正：SDK 的 response.text 是一个计算属性，直接返回 response 到前端时 text 会丢失
-    // 所以我们要手动构造一个包含 text 的 JSON 返回
+    // 修复：不再使用 ...response 展开运算符，避免与手动定义的键冲突
+    // 只返回前端需要的最核心数据
     return res.status(200).json({
       text: response.text,
       candidates: response.candidates,
-      // 保持原始数据结构，以便前端处理音频等 Modality
-      ...response 
+      usageMetadata: (response as any).usageMetadata // 可选：添加用量统计
     });
   } catch (error: any) {
     console.error("Gemini API 后端错误:", error);
