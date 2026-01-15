@@ -81,7 +81,6 @@ export async function fetchLearningContent(category: LearningCategory, date: str
   const cached = getArticlesByDateAndCategory(date, category);
   if (!isAppend && cached.length > 0) return cached;
 
-  // 优化提示词：指定源和数量，减少生成压力
   let sourceInstruction = "";
   if (category === 'news') sourceInstruction = "Source: NHK News Web Easy. Get 3 latest easy-to-read news.";
   else if (category === 'forum') sourceInstruction = "Source: Yahoo!知恵袋 or 5ch summaries. Get 3 interesting discussions.";
@@ -92,12 +91,13 @@ export async function fetchLearningContent(category: LearningCategory, date: str
       model: 'gemini-3-flash-preview',
       contents: `Task: Rapidly fetch Japanese learning content for ${date}.
       Category: ${category}.
-      Instructions:
+      Strict Formatting Rules:
       1. ${sourceInstruction}
       2. Limit output to exactly 3 items.
-      3. Use <ruby> tags for all Kanji.
-      4. ALL translations, grammar explanations, and meanings MUST be in Simplified Chinese only.
-      5. Strict JSON format.`,
+      3. ONLY use <ruby> tags for Japanese text fields (title, content, sentences, vocabulary.word).
+      4. STRIP all HTML and <ruby> tags from Chinese fields (summary, translations, meaning, explanation). These fields must be PLAIN TEXT.
+      5. ALL translations and meanings MUST be in Simplified Chinese only.
+      6. Strict JSON format.`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -139,7 +139,7 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `Search 5 Japanese Christian hymns. Kanji with <ruby>. Chinese translation required.`,
+      contents: `Search 5 Japanese Christian hymns. Japanese lyrics use <ruby>. Translation field must be PLAIN TEXT Simplified Chinese.`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -167,7 +167,7 @@ export async function fetchBibleVerses(excludeIds: string[] = []) {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `Provide 5 Japanese Bible verses. <ruby> tags for Kanji. Simplified Chinese translation only.`,
+      contents: `Provide 5 Japanese Bible verses. Use <ruby> only for Japanese text. translations fields must be PLAIN TEXT Simplified Chinese.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -199,7 +199,7 @@ export async function generateQuizzes(context: string): Promise<QuizQuestion[]> 
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `Generate 5 JLPT practice questions based on: ${context}. Kanji with <ruby>. Simplified Chinese explanations.`,
+      contents: `Generate 5 JLPT practice questions. <ruby> for Japanese options/question. PLAIN TEXT for Chinese explanations.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
