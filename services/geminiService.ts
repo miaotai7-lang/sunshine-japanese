@@ -1,7 +1,7 @@
-import { JLPTLevel, Article, Song, LearningCategory } from "../types";
+
+import { JLPTLevel, Article, Song, LearningCategory, QuizQuestion } from "../types";
 import { saveArticlesToCache, saveBibleVersesToCache, getArticlesByDateAndCategory } from "./cacheService";
 
-// 统一的代理请求函数
 async function callProxyAPI(payload: any) {
   const response = await fetch('/api/generate', {
     method: 'POST',
@@ -16,17 +16,13 @@ async function callProxyAPI(payload: any) {
   return await response.json();
 }
 
-// 深度清理 AI 返回的 JSON 字符串，防止标签显示为源码
 function cleanJsonResponse(text: string): string {
   let cleaned = text.trim();
-  // 移除 Markdown 标识
   cleaned = cleaned.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "");
-  // 强制还原 HTML 转义字符，这是解决手机端显示源码的关键
   cleaned = cleaned.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');
   return cleaned;
 }
 
-// 辅助函数：解码 Base64 音频
 function decode(base64: string) {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
@@ -49,11 +45,18 @@ async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: 
   return buffer;
 }
 
+// 缓存音频上下文，减少每次播放的初始化时间
+let sharedAudioCtx: AudioContext | null = null;
+
 export async function playTTS(text: string) {
   try {
+    if (!sharedAudioCtx) {
+      sharedAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    }
+    
     const response = await callProxyAPI({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `朗读这段日语，语速自然：${text}` }] }],
+      contents: [{ parts: [{ text: `朗读这段日语，请语速自然清晰：${text}` }] }],
       config: {
         responseModalities: ["AUDIO"],
         speechConfig: {
@@ -64,12 +67,11 @@ export async function playTTS(text: string) {
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      const audioBuffer = await decodeAudioData(decode(base64Audio), audioCtx, 24000, 1);
-      const source = audioCtx.createBufferSource();
+      const audioBuffer = await decodeAudioData(decode(base64Audio), sharedAudioCtx, 24000, 1);
+      const source = sharedAudioCtx.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(audioCtx.destination);
-      source.start();
+      source.connect(sharedAudioCtx.destination);
+      source.start(0);
     }
   } catch (e) {
     console.error("TTS Error:", e);
@@ -77,9 +79,10 @@ export async function playTTS(text: string) {
 }
 
 export async function fetchLearningContent(category: LearningCategory, date: string, isAppend: boolean = false): Promise<Article[]> {
-  if (!isAppend) {
-    const cached = getArticlesByDateAndCategory(date, category);
-    if (cached.length >= 5) return cached;
+  // 离线优先：如果缓存中有数据且不是强制刷新（isAppend），则直接返回，不展示加载动画
+  const cached = getArticlesByDateAndCategory(date, category);
+  if (!isAppend && cached.length > 0) {
+    return cached;
   }
 
   try {
@@ -87,9 +90,9 @@ export async function fetchLearningContent(category: LearningCategory, date: str
       model: 'gemini-3-flash-preview',
       contents: `任务：抓取 ${date} 的日语学习内容（类别：${category}）。
       要求：
-      1. 返回 JSON 格式。
-      2. 汉字标注 <ruby> 标签。
-      3. 严禁转义 < 和 > 符号。`,
+      1. 返回 JSON。汉字标注 <ruby>。
+      2. 所有翻译必须强制使用简体中文，禁止使用英文。
+      3. 解释和语法说明必须为简体中文。`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -123,7 +126,7 @@ export async function fetchLearningContent(category: LearningCategory, date: str
     return articles;
   } catch (e) { 
     console.error(e);
-    return []; 
+    return cached; // 报错则降级使用缓存
   }
 }
 
@@ -131,7 +134,7 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `搜索 10 首日语基督教赞美诗。汉字带 <ruby>。`,
+      contents: `搜索日语基督教赞美诗。汉字带 <ruby>。翻译必须为简体中文。`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -155,38 +158,11 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   } catch (e) { return []; }
 }
 
-export async function generateQuizzes(context: string) {
-  try {
-    const result = await callProxyAPI({
-      model: 'gemini-3-flash-preview',
-      contents: `生成 JLPT 练习题：${context}。`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "ARRAY",
-          items: {
-            type: "OBJECT",
-            properties: {
-              question: { type: "STRING" },
-              options: { type: "ARRAY", items: { type: "STRING" } },
-              correctAnswer: { type: "INTEGER" },
-              explanation: { type: "STRING" },
-              type: { type: "STRING" }
-            }
-          }
-        }
-      }
-    });
-    const jsonStr = cleanJsonResponse(result.text || "[]");
-    return JSON.parse(jsonStr);
-  } catch (e) { return []; }
-}
-
 export async function fetchBibleVerses(excludeIds: string[] = []) {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `提供 10 段日语圣经金句。汉字使用 <ruby>。`,
+      contents: `提供10段日语圣经金句。汉字使用 <ruby>。翻译强制为简体中文。`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -212,4 +188,52 @@ export async function fetchBibleVerses(excludeIds: string[] = []) {
     saveBibleVersesToCache(data);
     return data;
   } catch (e) { return []; }
+}
+
+/**
+ * Generates quiz questions based on the provided context using Gemini 3 Flash.
+ */
+export async function generateQuizzes(context: string): Promise<QuizQuestion[]> {
+  try {
+    const result = await callProxyAPI({
+      model: 'gemini-3-flash-preview',
+      contents: `任务：基于以下内容生成10道日语练习题（题型包含：听力理解、阅读理解、语法、词汇）：${context}。
+      要求：
+      1. 返回 JSON 数组。
+      2. 汉字标注 <ruby>。
+      3. 听力题 (listening) 必须包含 audioText 字段（纯日语，不带ruby，用于TTS播放）。
+      4. 题目、选项和解析必须使用简体中文。`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              type: { type: "STRING", description: "listening, reading, grammar, or vocabulary" },
+              question: { type: "STRING" },
+              options: { type: "ARRAY", items: { type: "STRING" } },
+              correctAnswer: { type: "NUMBER", description: "Correct option index (0-3)" },
+              explanation: { type: "STRING" },
+              audioText: { type: "STRING" }
+            },
+            required: ["type", "question", "options", "correctAnswer", "explanation"]
+          }
+        }
+      }
+    });
+
+    const jsonStr = cleanJsonResponse(result.text || "[]");
+    const data = JSON.parse(jsonStr);
+    return data.map((q: any, i: number) => ({
+      ...q,
+      id: `quiz-${Date.now()}-${i}`,
+      type: (['listening', 'reading', 'grammar', 'vocabulary'].includes(q.type?.toLowerCase()) 
+        ? q.type.toLowerCase() 
+        : 'vocabulary') as QuizQuestion['type']
+    }));
+  } catch (e) {
+    console.error("Generate Quizzes Error:", e);
+    return [];
+  }
 }
