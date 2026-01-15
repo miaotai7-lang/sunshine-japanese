@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import Home from './pages/Home';
-import Learning from './pages/Learning';
+import { Home } from './pages/Home';
+import { Learning } from './pages/Learning';
+// Use default imports as these modules use 'export default'
 import Practice from './pages/Practice';
 import Collection from './pages/Collection';
 import Songs from './pages/Songs';
@@ -10,7 +11,7 @@ import ArticleDetail from './pages/ArticleDetail';
 import Bible from './pages/Bible';
 import BibleDetail from './pages/BibleDetail';
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900 pb-20 md:pb-0 md:pl-20">
@@ -110,5 +111,3 @@ const BottomNav: React.FC = () => {
     </nav>
   );
 };
-
-export default App;
