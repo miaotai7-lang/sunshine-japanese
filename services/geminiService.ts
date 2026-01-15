@@ -45,7 +45,6 @@ async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: 
   return buffer;
 }
 
-// 缓存音频上下文，减少每次播放的初始化时间
 let sharedAudioCtx: AudioContext | null = null;
 
 export async function playTTS(text: string) {
@@ -79,20 +78,26 @@ export async function playTTS(text: string) {
 }
 
 export async function fetchLearningContent(category: LearningCategory, date: string, isAppend: boolean = false): Promise<Article[]> {
-  // 离线优先：如果缓存中有数据且不是强制刷新（isAppend），则直接返回，不展示加载动画
   const cached = getArticlesByDateAndCategory(date, category);
-  if (!isAppend && cached.length > 0) {
-    return cached;
-  }
+  if (!isAppend && cached.length > 0) return cached;
+
+  // 优化提示词：指定源和数量，减少生成压力
+  let sourceInstruction = "";
+  if (category === 'news') sourceInstruction = "Source: NHK News Web Easy. Get 3 latest easy-to-read news.";
+  else if (category === 'forum') sourceInstruction = "Source: Yahoo!知恵袋 or 5ch summaries. Get 3 interesting discussions.";
+  else sourceInstruction = "Source: Google Trends Japan or Twitter Trends JP. Get 3 hot keywords with explanations.";
 
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `任务：抓取 ${date} 的日语学习内容（类别：${category}）。
-      要求：
-      1. 返回 JSON。汉字标注 <ruby>。
-      2. 所有翻译必须强制使用简体中文，禁止使用英文。
-      3. 解释和语法说明必须为简体中文。`,
+      contents: `Task: Rapidly fetch Japanese learning content for ${date}.
+      Category: ${category}.
+      Instructions:
+      1. ${sourceInstruction}
+      2. Limit output to exactly 3 items.
+      3. Use <ruby> tags for all Kanji.
+      4. ALL translations, grammar explanations, and meanings MUST be in Simplified Chinese only.
+      5. Strict JSON format.`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -126,7 +131,7 @@ export async function fetchLearningContent(category: LearningCategory, date: str
     return articles;
   } catch (e) { 
     console.error(e);
-    return cached; // 报错则降级使用缓存
+    return cached;
   }
 }
 
@@ -134,7 +139,7 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `搜索日语基督教赞美诗。汉字带 <ruby>。翻译必须为简体中文。`,
+      contents: `Search 5 Japanese Christian hymns. Kanji with <ruby>. Chinese translation required.`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
@@ -162,7 +167,7 @@ export async function fetchBibleVerses(excludeIds: string[] = []) {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `提供10段日语圣经金句。汉字使用 <ruby>。翻译强制为简体中文。`,
+      contents: `Provide 5 Japanese Bible verses. <ruby> tags for Kanji. Simplified Chinese translation only.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -190,19 +195,11 @@ export async function fetchBibleVerses(excludeIds: string[] = []) {
   } catch (e) { return []; }
 }
 
-/**
- * Generates quiz questions based on the provided context using Gemini 3 Flash.
- */
 export async function generateQuizzes(context: string): Promise<QuizQuestion[]> {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: `任务：基于以下内容生成10道日语练习题（题型包含：听力理解、阅读理解、语法、词汇）：${context}。
-      要求：
-      1. 返回 JSON 数组。
-      2. 汉字标注 <ruby>。
-      3. 听力题 (listening) 必须包含 audioText 字段（纯日语，不带ruby，用于TTS播放）。
-      4. 题目、选项和解析必须使用简体中文。`,
+      contents: `Generate 5 JLPT practice questions based on: ${context}. Kanji with <ruby>. Simplified Chinese explanations.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -210,30 +207,25 @@ export async function generateQuizzes(context: string): Promise<QuizQuestion[]> 
           items: {
             type: "OBJECT",
             properties: {
-              type: { type: "STRING", description: "listening, reading, grammar, or vocabulary" },
+              type: { type: "STRING" },
               question: { type: "STRING" },
               options: { type: "ARRAY", items: { type: "STRING" } },
-              correctAnswer: { type: "NUMBER", description: "Correct option index (0-3)" },
+              correctAnswer: { type: "NUMBER" },
               explanation: { type: "STRING" },
               audioText: { type: "STRING" }
-            },
-            required: ["type", "question", "options", "correctAnswer", "explanation"]
+            }
           }
         }
       }
     });
-
     const jsonStr = cleanJsonResponse(result.text || "[]");
     const data = JSON.parse(jsonStr);
     return data.map((q: any, i: number) => ({
       ...q,
       id: `quiz-${Date.now()}-${i}`,
-      type: (['listening', 'reading', 'grammar', 'vocabulary'].includes(q.type?.toLowerCase()) 
-        ? q.type.toLowerCase() 
-        : 'vocabulary') as QuizQuestion['type']
+      type: q.type?.toLowerCase() || 'vocabulary'
     }));
   } catch (e) {
-    console.error("Generate Quizzes Error:", e);
     return [];
   }
 }
