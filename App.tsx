@@ -3,13 +3,12 @@ import React from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Home } from './pages/Home';
 import { Learning } from './pages/Learning';
-// Use default imports as these modules use 'export default'
-import Practice from './pages/Practice';
-import Collection from './pages/Collection';
-import Songs from './pages/Songs';
-import ArticleDetail from './pages/ArticleDetail';
-import Bible from './pages/Bible';
-import BibleDetail from './pages/BibleDetail';
+import { Practice } from './pages/Practice';
+import { Collection } from './pages/Collection';
+import { Songs } from './pages/Songs';
+import { ArticleDetail } from './pages/ArticleDetail';
+import { Bible } from './pages/Bible';
+import { BibleDetail } from './pages/BibleDetail';
 
 export const App: React.FC = () => {
   return (
