@@ -6,9 +6,13 @@
     <title>Komorebi - AI Japanese Learning</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#4f46e5">
-    <meta name="mobile-web-app-capable" content="yes">
+    
+    <!-- iOS Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Sunshine">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3898/3898082.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,29 +50,6 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
-        .Japanese-text {
-            -webkit-touch-callout: none;
-        }
-        .confetti-container {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 9999;
-            overflow: hidden;
-        }
-        .confetti {
-            position: absolute;
-            width: 10px; height: 10px;
-            background-color: #f2d74e;
-            top: -10%;
-            animation: fall 3s linear infinite;
-        }
-        @keyframes fall {
-            to { transform: translateY(110vh) rotate(720deg); }
-        }
-        .confetti:nth-child(2n) { background-color: #95c3de; }
-        .confetti:nth-child(3n) { background-color: #ff9a91; }
-        .confetti:nth-child(4n) { background-color: #a0f0bd; }
-        .confetti:nth-child(5n) { background-color: #c096ff; }
     </style>
 <script type="importmap">
 {
@@ -88,9 +69,16 @@
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
     <script>
+      // 注册一个更加“正式”的 Service Worker，让 Chrome 认定这是一个合规的 PWA
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('data:text/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdmZXRjaCcsIGV2ZW50ID0+IHsgfSk7').catch(err => console.log('SW registration failed: ', err));
+          const swCode = `
+            self.addEventListener('install', (e) => self.skipWaiting());
+            self.addEventListener('fetch', (e) => { });
+          `;
+          const blob = new Blob([swCode], {type: 'application/javascript'});
+          const url = URL.createObjectURL(blob);
+          navigator.serviceWorker.register(url).catch(err => console.log('SW registration failed: ', err));
         });
       }
     </script>
