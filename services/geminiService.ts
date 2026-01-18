@@ -83,25 +83,29 @@ export async function fetchLearningContent(
 }
 
 /**
- * 赞美诗搜索：精准锁定“赞美之泉” (讃美の泉)
+ * 赞美诗搜索：精准锁定并校验“赞美之泉”视频链接
  */
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      // 指定搜索“赞美之泉”的日语歌词
-      contents: `Search for 2 Japanese worship songs by "讃美の泉" (Stream of Praise). Focus on their official repertoire. Offset: ${offset}.`,
+      contents: `Find 2 REAL Japanese worship songs from "Stream of Praise" (讃美の泉). 
+      You MUST verify that the youtubeUrl is functional and leads to the official "Stream of Praise" channel or a verified version. 
+      Offset: ${offset}.`,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: `Worship Music Expert focusing on "Stream of Praise" (讃美の泉). 
-        Output exactly 2 JSON objects in an array. 
-        Structure: {title, artist, lyrics, translation, youtubeUrl}. 
-        CRITICAL: Provide FULL lyrics with <ruby> for all Kanji. Translation must be in Chinese. Speed is priority.`,
+        systemInstruction: `Worship Music Verification Expert. 
+        Your goal: Provide songs from "Stream of Praise" (讃美の泉) with VALID YouTube links.
+        - SEARCH specifically on YouTube for "讃美の泉 [Song Title] Japanese".
+        - DO NOT hallucinate YouTube IDs. Only use links you find in the search results.
+        - Output 2 JSON objects in an array.
+        - Structure: {title, artist, lyrics, translation, youtubeUrl}.
+        - lyrics: Full text with <ruby> tags.
+        - youtubeUrl: Must be a full, valid https://www.youtube.com/watch?v=... link.`,
         responseMimeType: "application/json"
       }
     });
     const data = JSON.parse(cleanJsonResponse(result.text || "[]"));
-    // 确保 artist 字段包含赞美之泉
     return data.map((s: any, i: number) => ({ 
       ...s, 
       artist: s.artist || '讃美の泉 (Stream of Praise)',
