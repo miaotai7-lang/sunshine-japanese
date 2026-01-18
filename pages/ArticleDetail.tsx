@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Article, getLevelColor } from '../types';
@@ -15,6 +14,10 @@ export const ArticleDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'content' | 'vocab' | 'grammar'>('content');
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [starred, setStarred] = useState<Set<string>>(new Set());
+  
+  // 显隐控制状态
+  const [showJapanese, setShowJapanese] = useState(true);
+  const [showTranslation, setShowTranslation] = useState(true);
 
   const refreshStarred = () => {
     const collections = JSON.parse(localStorage.getItem('user_collection') || '[]');
@@ -64,18 +67,28 @@ export const ArticleDetail: React.FC = () => {
     <div className="pb-24 animate-fadeIn">
       <div className="flex justify-between items-center mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-md z-30 py-3">
         <button onClick={() => navigate(-1)} className="text-slate-400 text-sm font-bold flex items-center gap-2">
-          <i className="fa-solid fa-chevron-left"></i> 返回
+          <i className="fa-solid fa-chevron-left"></i>
         </button>
         <div className="flex gap-2">
-           <button onClick={() => toggleStar(article, 'article')} className={`${starred.has(String(article.id)) ? 'text-amber-500' : 'text-slate-300'} transition-all`}>
-              <i className="fa-solid fa-star text-lg"></i>
+           <button 
+             onClick={() => setShowJapanese(!showJapanese)} 
+             className={`px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all ${showJapanese ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-400'}`}
+           >
+             {showJapanese ? '隐藏汉字假名' : '显示汉字假名'}
            </button>
-           <span className={`text-[10px] font-black px-3 py-1.5 rounded-full ${getLevelColor(article.level)}`}>{article.level}</span>
+           <button 
+             onClick={() => setShowTranslation(!showTranslation)} 
+             className={`px-3 py-1 rounded-full text-[10px] font-black uppercase transition-all ${showTranslation ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'}`}
+           >
+             {showTranslation ? '隐藏翻译' : '显示翻译'}
+           </button>
         </div>
       </div>
 
       <header className="mb-8 px-2">
-        <h2 className="text-2xl font-black leading-tight text-slate-800 mb-4 Japanese-text">{article.title}</h2>
+        <h2 className={`text-2xl font-black leading-tight text-slate-800 mb-4 Japanese-text ${!showJapanese ? 'hidden-content' : ''}`}>
+          {article.title}
+        </h2>
         <div className="bg-white p-6 rounded-3xl border border-slate-100 italic text-slate-500 text-sm leading-relaxed">
            {article.summary}
         </div>
@@ -96,8 +109,10 @@ export const ArticleDetail: React.FC = () => {
               <div key={i} className={`bg-white rounded-[2rem] p-6 border transition-all ${playingId === `s-${i}` ? 'border-indigo-500 shadow-lg' : 'border-slate-100 shadow-sm'}`}>
                 <div className="flex justify-between items-start gap-4">
                    <div className="flex-1">
-                      <p className="text-lg text-slate-800 leading-relaxed font-medium Japanese-text">{sentence}</p>
-                      <p className="mt-4 text-slate-400 text-sm font-medium border-t border-slate-50 pt-4">
+                      <p className={`text-lg text-slate-800 leading-relaxed font-medium Japanese-text ${!showJapanese ? 'hidden-content' : ''}`}>
+                        {sentence}
+                      </p>
+                      <p className={`mt-4 text-slate-400 text-sm font-medium border-t border-slate-50 pt-4 translation-text ${!showTranslation ? 'hidden-content' : ''}`}>
                          {article.translations?.[i]}
                       </p>
                    </div>
@@ -112,14 +127,16 @@ export const ArticleDetail: React.FC = () => {
 
         {activeTab === 'vocab' && (
           <div className="grid gap-4">
-            {article.vocabulary && article.vocabulary.length > 0 ? article.vocabulary.map((v, i) => (
+            {article.vocabulary?.map((v, i) => (
               <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm group">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="text-xl font-black text-slate-800 Japanese-text">{v.word}</span>
+                  <div className={`flex items-center gap-3 mb-1 Japanese-text ${!showJapanese ? 'hidden-content' : ''}`}>
+                    <span className="text-xl font-black text-slate-800">{v.word}</span>
                     <span className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">[{v.reading}]</span>
                   </div>
-                  <p className="text-sm text-slate-500 font-medium">{v.meaning}</p>
+                  <p className={`text-sm text-slate-500 font-medium translation-text ${!showTranslation ? 'hidden-content' : ''}`}>
+                    {v.meaning}
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => toggleStar(v, 'word')} className={`${starred.has(String(v.id || v.word)) ? 'text-amber-500' : 'text-slate-300'} transition-all px-2`}>
@@ -130,31 +147,7 @@ export const ArticleDetail: React.FC = () => {
                   </button>
                 </div>
               </div>
-            )) : (
-              <div className="text-center py-10 text-slate-400 italic">正在生成核心词...</div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'grammar' && (
-          <div className="grid gap-4">
-            {article.grammar && article.grammar.length > 0 ? article.grammar.map((g, i) => (
-              <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-black text-indigo-600 text-lg Japanese-text">{g.point}</h4>
-                  <button onClick={() => toggleStar(g, 'grammar')} className={`${starred.has(String(g.id || g.point)) ? 'text-amber-500' : 'text-slate-300'} transition-all`}>
-                    <i className="fa-solid fa-star"></i>
-                  </button>
-                </div>
-                <p className="text-sm text-slate-600 mb-4 font-bold">{g.explanation}</p>
-                <div className="bg-slate-50 p-4 rounded-2xl border-l-4 border-indigo-200">
-                   <p className="text-xs text-slate-500 italic mb-1 uppercase tracking-tighter">Example:</p>
-                   <p className="text-sm text-slate-800 leading-relaxed font-medium Japanese-text">{g.example}</p>
-                </div>
-              </div>
-            )) : (
-              <div className="text-center py-10 text-slate-400 italic">正在进行语法拆解...</div>
-            )}
+            ))}
           </div>
         )}
       </div>
