@@ -7,6 +7,17 @@ export enum JLPTLevel {
   N5 = 'N5'
 }
 
+export const getLevelColor = (level: JLPTLevel | string) => {
+  switch (level) {
+    case 'N1': return 'bg-rose-500 text-white';
+    case 'N2': return 'bg-orange-500 text-white';
+    case 'N3': return 'bg-amber-500 text-white';
+    case 'N4': return 'bg-emerald-500 text-white';
+    case 'N5': return 'bg-sky-500 text-white';
+    default: return 'bg-slate-500 text-white';
+  }
+};
+
 export type LearningCategory = 'news' | 'forum' | 'trending';
 
 export interface Vocabulary {
