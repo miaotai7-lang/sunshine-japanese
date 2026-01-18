@@ -19,15 +19,7 @@ export const BibleDetail: React.FC = () => {
   
   const [playingId, setPlayingId] = useState<string | null>(null);
 
-  // 录音相关
-  const [recordings, setRecordings] = useState<Record<string, string>>({});
-  const [isRecording, setIsRecording] = useState<string | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-
   useEffect(() => {
-    // Narrow id to string to satisfy type safety for getBibleVerseById
     if (!verse && typeof id === 'string') {
       const cached = getBibleVerseById(id);
       if (cached) setVerse(cached);
@@ -35,70 +27,14 @@ export const BibleDetail: React.FC = () => {
     const collections = JSON.parse(localStorage.getItem('user_collection') || '[]');
     setStarred(new Set<string>(collections.map((item: any) => String(item.id))));
     recordActivity(10);
-
-    return () => {
-      Object.values(recordings).forEach(url => URL.revokeObjectURL(url));
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-    };
   }, [id, verse]);
 
   if (!verse) return <div className="p-10 text-center text-slate-400">正在载入圣言...</div>;
 
   const handleTTS = async (text: string, id: string) => {
-    if (playingId) return;
     setPlayingId(id);
     await playTTS(text);
-    setPlayingId(null);
-  };
-
-  const toggleRecording = async (key: string) => {
-    if (isRecording === key) {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
-      }
-      setIsRecording(null);
-    } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streamRef.current = stream;
-
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
-          ? 'audio/webm' 
-          : MediaRecorder.isTypeSupported('audio/mp4') 
-            ? 'audio/mp4' 
-            : '';
-
-        const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-        mediaRecorderRef.current = recorder;
-        audioChunksRef.current = [];
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) audioChunksRef.current.push(e.data);
-        };
-
-        recorder.onstop = () => {
-          const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
-          const url = URL.createObjectURL(blob);
-          setRecordings(p => ({ ...p, [key]: url }));
-          
-          if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
-          }
-          recordActivity(5);
-        };
-
-        recorder.start();
-        setIsRecording(key);
-      } catch (e) {
-        console.error("Recording error:", e);
-        alert("无法访问麦克风。");
-      }
-    }
-  };
-
-  const playRecording = (url: string) => {
-    const audio = new Audio(url);
-    audio.play().catch(e => console.error(e));
+    setTimeout(() => setPlayingId(null), 500);
   };
 
   const toggleStar = (itemId: string, type: string, content: any) => {
@@ -161,18 +97,9 @@ export const BibleDetail: React.FC = () => {
                   
                   <div className="flex items-center justify-between pt-4 border-t border-slate-50">
                     <div className="flex gap-3">
-                      <button onClick={() => handleTTS(cleanText(sentence), sId)} className={`w-11 h-11 flex items-center justify-center rounded-2xl ${playingId === sId ? 'bg-purple-600 text-white animate-pulse' : 'bg-purple-50 text-purple-600'}`}>
-                        <i className={`fa-solid ${playingId === sId ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
+                      <button onClick={() => handleTTS(cleanText(sentence), sId)} className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${playingId === sId ? 'bg-purple-600 text-white shadow-lg' : 'bg-purple-50 text-purple-600'}`}>
+                        <i className={`fa-solid ${playingId === sId ? 'fa-volume-high animate-pulse' : 'fa-volume-high'}`}></i>
                       </button>
-                      <button 
-                        onClick={() => toggleRecording(sId)} 
-                        className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${isRecording === sId ? 'bg-rose-600 text-white animate-pulse shadow-lg scale-110' : 'bg-rose-50 text-rose-600'}`}
-                      >
-                        <i className={`fa-solid ${isRecording === sId ? 'fa-stop' : 'fa-microphone'}`}></i>
-                      </button>
-                      {recordings[sId] && !isRecording && (
-                        <button onClick={() => playRecording(recordings[sId])} className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 active:scale-90"><i className="fa-solid fa-play"></i></button>
-                      )}
                     </div>
                     <button onClick={() => toggleStar(`v-${verse.id}-${idx}`, 'sentence', sentence)} className={`${starred.has(`v-${verse.id}-${idx}`) ? 'text-amber-500' : 'text-slate-300'}`}>
                       <i className="fa-solid fa-star text-lg"></i>
@@ -187,12 +114,17 @@ export const BibleDetail: React.FC = () => {
         {activeTab === 'vocab' && (
           <div className="grid gap-4">
             {verse.vocabulary?.map((vocab, vIdx) => (
-              <div key={vIdx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                <div className="flex justify-between items-start">
-                  <div className="font-bold text-xl text-slate-800 Japanese-text" dangerouslySetInnerHTML={{ __html: processContent(vocab.word) }}></div>
-                  <button onClick={() => handleTTS(cleanText(vocab.word), `v-${vIdx}`)} className="w-10 h-10 rounded-2xl bg-slate-50 text-slate-400 hover:text-purple-600"><i className="fa-solid fa-volume-high"></i></button>
+              <div key={vIdx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="font-bold text-xl text-slate-800 Japanese-text flex items-center gap-2">
+                    <span dangerouslySetInnerHTML={{ __html: processContent(vocab.word) }}></span>
+                    <span className="text-[10px] text-purple-400 font-black">[{vocab.reading}]</span>
+                  </div>
+                  {showTranslation && <div className="text-xs text-slate-500 font-bold mt-2">{processContent(vocab.meaning)}</div>}
                 </div>
-                {showTranslation && <div className="text-sm text-slate-500 font-bold bg-slate-50/50 p-4 rounded-2xl mt-4 leading-relaxed">{processContent(vocab.meaning)}</div>}
+                <button onClick={() => handleTTS(vocab.reading || vocab.word, `v-${vIdx}`)} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${playingId === `v-${vIdx}` ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-50 text-slate-400'}`}>
+                  <i className={`fa-solid ${playingId === `v-${vIdx}` ? 'fa-volume-high animate-pulse' : 'fa-volume-high'}`}></i>
+                </button>
               </div>
             ))}
           </div>
@@ -208,8 +140,8 @@ export const BibleDetail: React.FC = () => {
                     <p className="text-sm font-bold text-slate-600 leading-relaxed">{processContent(g.explanation)}</p>
                     <div className="bg-purple-50/30 p-6 rounded-2xl border border-purple-50">
                       <p className="text-base Japanese-text text-slate-800 leading-relaxed font-medium mb-3" dangerouslySetInnerHTML={{ __html: processContent(g.example) }}></p>
-                      <button onClick={() => handleTTS(cleanText(g.example), `g-${gIdx}`)} className="text-purple-500 text-xs font-black flex items-center gap-2">
-                        <i className="fa-solid fa-volume-high"></i> 朗读例句
+                      <button onClick={() => handleTTS(cleanText(g.example), `g-${gIdx}`)} className={`text-xs font-black flex items-center gap-2 transition-all ${playingId === `g-${gIdx}` ? 'text-purple-600 scale-105' : 'text-purple-500'}`}>
+                        <i className={`fa-solid ${playingId === `g-${gIdx}` ? 'fa-volume-high animate-pulse' : 'fa-volume-high'}`}></i> 朗读例句
                       </button>
                     </div>
                   </div>
