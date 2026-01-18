@@ -59,6 +59,18 @@ export const Home: React.FC = () => {
     }
   };
 
+  const handleClearAllData = () => {
+    if (window.confirm("确定要清空所有已抓取的内容、学习记录及收藏吗？该操作不可撤销。")) {
+      // 保留用户偏好设置，清除其他所有业务数据
+      const userPrefs = localStorage.getItem('user_prefs');
+      localStorage.clear();
+      if (userPrefs) {
+        localStorage.setItem('user_prefs', userPrefs);
+      }
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fadeIn pb-12">
       <section className="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-100 overflow-hidden relative">
@@ -148,6 +160,23 @@ export const Home: React.FC = () => {
           <MenuCard to="/practice" title="弱点突击" desc="AI 自适应题" icon="fa-bolt" color="bg-amber-50 text-amber-600" />
           <MenuCard to="/collection" title="记忆工坊" desc="艾宾浩斯复习" icon="fa-repeat" color="bg-rose-50 text-rose-600" />
         </div>
+      </section>
+
+      {/* 危险区域：重置开关 */}
+      <section className="bg-rose-50/50 rounded-[2.5rem] p-8 border border-rose-100/50 mt-12">
+        <div className="flex items-center gap-4 mb-4 text-rose-500">
+           <i className="fa-solid fa-triangle-exclamation text-xl"></i>
+           <h3 className="font-black text-sm uppercase tracking-widest">数据管理</h3>
+        </div>
+        <p className="text-[10px] text-rose-400 font-bold mb-6 leading-relaxed uppercase tracking-tighter">
+          点击下方按钮将清空所有已抓取的语料、圣经、歌词以及您的学习统计和收藏夹。
+        </p>
+        <button
+          onClick={handleClearAllData}
+          className="w-full py-4 bg-rose-500 text-white rounded-2xl font-black text-xs shadow-lg shadow-rose-100 active:scale-95 transition-all uppercase tracking-widest"
+        >
+          立即清空全部内容
+        </button>
       </section>
     </div>
   );
