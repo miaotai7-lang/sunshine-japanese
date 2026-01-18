@@ -3,6 +3,8 @@ import { Article, BibleVerse, LearningCategory } from '../types';
 const STORAGE_KEYS = {
   ARTICLES: 'komorebi_articles_cache',
   BIBLE: 'komorebi_bible_cache',
+  SONGS: 'cached_songs_list',
+  LAST_SYNC: 'last_prefetch_date'
 };
 
 export function getArticlesCache(): Article[] {
@@ -21,12 +23,20 @@ export function saveArticlesToCache(articles: Article[]) {
   localStorage.setItem(STORAGE_KEYS.ARTICLES, JSON.stringify(updated));
 }
 
-export function getArticleById(id: string): Article | undefined {
-  return getArticlesCache().find(a => a.id === id);
+export function clearCacheByDate(date: string) {
+  const articles = getArticlesCache().filter(a => a.date !== date);
+  localStorage.setItem(STORAGE_KEYS.ARTICLES, JSON.stringify(articles));
 }
 
-export function getArticlesByDateAndCategory(date: string, category: LearningCategory): Article[] {
-  return getArticlesCache().filter(a => a.date === date && a.category === category);
+export function clearAllLearningCache() {
+  localStorage.removeItem(STORAGE_KEYS.ARTICLES);
+  localStorage.removeItem(STORAGE_KEYS.BIBLE);
+  localStorage.removeItem(STORAGE_KEYS.SONGS);
+  localStorage.removeItem(STORAGE_KEYS.LAST_SYNC);
+}
+
+export function getArticleById(id: string): Article | undefined {
+  return getArticlesCache().find(a => a.id === id);
 }
 
 export function getBibleCache(): BibleVerse[] {
