@@ -16,8 +16,9 @@ export const BibleDetail: React.FC = () => {
   const [starred, setStarred] = useState<Set<string>>(new Set());
   const [showFurigana, setShowFurigana] = useState(true);
   const [showTranslation, setShowTranslation] = useState(true);
-  
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [isShadowing, setIsShadowing] = useState(false);
+  const shadowingRef = useRef(false);
 
   useEffect(() => {
     if (!verse && typeof id === 'string') {
@@ -27,6 +28,11 @@ export const BibleDetail: React.FC = () => {
     const collections = JSON.parse(localStorage.getItem('user_collection') || '[]');
     setStarred(new Set<string>(collections.map((item: any) => String(item.id))));
     recordActivity(10);
+
+    return () => {
+      shadowingRef.current = false;
+      window.speechSynthesis.cancel();
+    };
   }, [id, verse]);
 
   if (!verse) return <div className="p-10 text-center text-slate-400">正在载入圣言...</div>;
@@ -34,7 +40,38 @@ export const BibleDetail: React.FC = () => {
   const handleTTS = async (text: string, id: string) => {
     setPlayingId(id);
     await playTTS(text);
-    setTimeout(() => setPlayingId(null), 500);
+    setPlayingId(null);
+  };
+
+  const startShadowing = async () => {
+    if (isShadowing) {
+      setIsShadowing(false);
+      shadowingRef.current = false;
+      window.speechSynthesis.cancel();
+      setPlayingId(null);
+      return;
+    }
+
+    setIsShadowing(true);
+    shadowingRef.current = true;
+
+    for (let i = 0; i < verse.sentences.length; i++) {
+      if (!shadowingRef.current) break;
+      const sentence = verse.sentences[i];
+      setPlayingId(`s-${i}`);
+      await playTTS(sentence, 0.75);
+      
+      if (shadowingRef.current) {
+        setPlayingId(`shadowing-${i}`);
+        const cleanLen = sentence.replace(/<[^>]*>?/gm, '').length;
+        const pauseTime = Math.max(3000, cleanLen * 300); 
+        await new Promise(resolve => setTimeout(resolve, pauseTime));
+      }
+    }
+    
+    setIsShadowing(false);
+    shadowingRef.current = false;
+    setPlayingId(null);
   };
 
   const toggleStar = (itemId: string, type: string, content: any) => {
@@ -53,19 +90,22 @@ export const BibleDetail: React.FC = () => {
     });
   };
 
-  const cleanText = (text: string) => text.replace(/<[^>]*>?/gm, '');
   const processContent = (text: string) => text.replace(/^(reading|meaning|point|explanation|example|word):\s*/i, "").trim();
 
   return (
     <div className={`pb-24 animate-fadeIn ${showFurigana ? '' : 'hide-furigana'}`}>
-      <div className="flex justify-between items-center mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-md z-20 py-3 px-1">
+      <div className="flex justify-between items-center mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-md z-30 py-3 px-1">
         <button onClick={() => navigate(-1)} className="text-slate-400 text-sm font-bold"><i className="fa-solid fa-chevron-left mr-1"></i>返回</button>
         <div className="flex gap-2">
+          <button 
+             onClick={startShadowing}
+             className={`px-4 py-1.5 rounded-full text-[10px] font-black transition-all flex items-center gap-2 ${isShadowing ? 'bg-rose-500 text-white' : 'bg-purple-100 text-purple-600'}`}
+           >
+             <i className={`fa-solid ${isShadowing ? 'fa-stop' : 'fa-microphone-lines'}`}></i>
+             {isShadowing ? '停止跟读' : '影子跟读'}
+           </button>
           <button onClick={() => setShowFurigana(!showFurigana)} className={`px-4 py-2 rounded-2xl text-[10px] font-black ${showFurigana ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-200 text-slate-600'}`}>
             假名
-          </button>
-          <button onClick={() => setShowTranslation(!showTranslation)} className={`px-4 py-2 rounded-2xl text-[10px] font-black ${showTranslation ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-200 text-slate-600'}`}>
-            中文
           </button>
         </div>
       </div>
@@ -89,18 +129,29 @@ export const BibleDetail: React.FC = () => {
         {activeTab === 'content' && (
           <div className="space-y-5">
             {verse.sentences.map((sentence, idx) => {
-              const sId = `b-s-${idx}`;
+              const sId = `s-${idx}`;
               return (
-                <div key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4 group">
+                <div 
+                  key={idx} 
+                  className={`bg-white p-6 rounded-[2rem] border transition-all ${
+                    playingId === `s-${idx}` ? 'border-purple-500 shadow-lg' : 
+                    playingId === `shadowing-${idx}` ? 'border-rose-400 bg-rose-50 shadow-md' : 
+                    'border-slate-100 shadow-sm'
+                  }`}
+                >
                   <p className="text-lg Japanese-text text-slate-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: processContent(sentence) }}></p>
                   {showTranslation && <p className="text-slate-400 text-sm font-medium border-l-4 border-slate-50 pl-4">{verse.translations?.[idx]}</p>}
                   
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                    <div className="flex gap-3">
-                      <button onClick={() => handleTTS(cleanText(sentence), sId)} className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${playingId === sId ? 'bg-purple-600 text-white shadow-lg' : 'bg-purple-50 text-purple-600'}`}>
-                        <i className={`fa-solid ${playingId === sId ? 'fa-volume-high animate-pulse' : 'fa-volume-high'}`}></i>
-                      </button>
+                  {playingId === `shadowing-${idx}` && (
+                    <div className="mt-2 text-rose-500 text-[10px] font-black uppercase animate-pulse">
+                      <i className="fa-solid fa-microphone mr-1"></i> 请跟读...
                     </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                    <button onClick={() => handleTTS(sentence, sId)} className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${playingId === sId ? 'bg-purple-600 text-white shadow-lg' : 'bg-purple-50 text-purple-600'}`}>
+                      <i className={`fa-solid ${playingId === sId ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
+                    </button>
                     <button onClick={() => toggleStar(`v-${verse.id}-${idx}`, 'sentence', sentence)} className={`${starred.has(`v-${verse.id}-${idx}`) ? 'text-amber-500' : 'text-slate-300'}`}>
                       <i className="fa-solid fa-star text-lg"></i>
                     </button>
@@ -108,46 +159,6 @@ export const BibleDetail: React.FC = () => {
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {activeTab === 'vocab' && (
-          <div className="grid gap-4">
-            {verse.vocabulary?.map((vocab, vIdx) => (
-              <div key={vIdx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="font-bold text-xl text-slate-800 Japanese-text flex items-center gap-2">
-                    <span dangerouslySetInnerHTML={{ __html: processContent(vocab.word) }}></span>
-                    <span className="text-[10px] text-purple-400 font-black">[{vocab.reading}]</span>
-                  </div>
-                  {showTranslation && <div className="text-xs text-slate-500 font-bold mt-2">{processContent(vocab.meaning)}</div>}
-                </div>
-                <button onClick={() => handleTTS(vocab.reading || vocab.word, `v-${vIdx}`)} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${playingId === `v-${vIdx}` ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-50 text-slate-400'}`}>
-                  <i className={`fa-solid ${playingId === `v-${vIdx}` ? 'fa-volume-high animate-pulse' : 'fa-volume-high'}`}></i>
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'grammar' && (
-          <div className="space-y-6">
-            {verse.grammar?.map((g, gIdx) => (
-              <div key={gIdx} className="bg-white p-7 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                <h4 className="font-black text-purple-700 text-xl mb-4">{processContent(g.point)}</h4>
-                {showTranslation && (
-                  <div className="space-y-4">
-                    <p className="text-sm font-bold text-slate-600 leading-relaxed">{processContent(g.explanation)}</p>
-                    <div className="bg-purple-50/30 p-6 rounded-2xl border border-purple-50">
-                      <p className="text-base Japanese-text text-slate-800 leading-relaxed font-medium mb-3" dangerouslySetInnerHTML={{ __html: processContent(g.example) }}></p>
-                      <button onClick={() => handleTTS(cleanText(g.example), `g-${gIdx}`)} className={`text-xs font-black flex items-center gap-2 transition-all ${playingId === `g-${gIdx}` ? 'text-purple-600 scale-105' : 'text-purple-500'}`}>
-                        <i className={`fa-solid ${playingId === `g-${gIdx}` ? 'fa-volume-high animate-pulse' : 'fa-volume-high'}`}></i> 朗读例句
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
           </div>
         )}
       </div>
