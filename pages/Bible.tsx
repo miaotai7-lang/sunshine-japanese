@@ -34,8 +34,8 @@ export const Bible: React.FC = () => {
   const loadMore = async () => {
     setLoadingMore(true);
     try {
-      const excludeIds = verses.map(v => v.id);
-      const more = await fetchBibleVerses(excludeIds);
+      // Fixed: fetchBibleVerses expects 0 arguments, removed excludeIds which was the 1st
+      const more = await fetchBibleVerses();
       setVerses(prev => [...prev, ...more]);
     } catch (e) {
       console.error(e);
