@@ -17,189 +17,121 @@ async function callProxyAPI(payload: any) {
 
 function cleanJsonResponse(text: string): string {
   let cleaned = text.trim();
-  // 处理可能存在的 Markdown 格式
   cleaned = cleaned.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "");
-  // 如果 AI 输出截断，尝试补全末尾的 ]
-  if (cleaned.endsWith('}') && !cleaned.endsWith('}]')) {
-    cleaned += ']';
-  } else if (!cleaned.endsWith(']') && !cleaned.endsWith('}')) {
-     // 极端截断情况尝试修复
-     const lastBrace = cleaned.lastIndexOf('}');
-     if (lastBrace !== -1) cleaned = cleaned.substring(0, lastBrace + 1) + ']';
-  }
+  if (cleaned.endsWith('}') && !cleaned.endsWith('}]')) cleaned += ']';
   return cleaned;
 }
 
-// 极其精简的指令，减少 AI 的 Token 开销
-const OPTIMIZED_INSTRUCTION = `Expert Japanese Educator.
-Rules:
-1. Output JSON ARRAY of 5 objects.
-2. Structure: {title, summary, content, sentences:[], translations:[], level, vocabulary:[{word, reading, meaning}], grammar:[{point, explanation, example}]}.
-3. Content: 300-500 chars per article.
-4. MUST: Use <ruby> for all Kanji.
-5. Chinese ONLY for explanations/translations.
-6. Semantic Tags: <span class="g-syntax"> grammar, <span class="g-particle"> particles.`;
-
-export function playTTS(text: string): Promise<void> {
+// 核心语音播放逻辑优化
+export function playTTS(text: string, rate: number = 0.85): Promise<void> {
   return new Promise((resolve) => {
-    const cleanText = text.replace(/<[^>]*>?/gm, '').trim();
+    // 预处理：移除HTML标签，特别是ruby标签
+    const cleanText = text.replace(/<rt>.*?<\/rt>/g, '').replace(/<[^>]*>?/gm, '').trim();
     if (!cleanText) return resolve();
+
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // 强制筛选日语语音包，避免中文引擎误读
     const voices = window.speechSynthesis.getVoices();
-    const jaVoice = voices.find(v => v.lang.startsWith('ja')) || voices.find(v => v.lang.includes('JP'));
-    if (jaVoice) utterance.voice = jaVoice;
+    // 优先级排序：Google原生 > 系统原生日语 > 包含 ja 的任何语音
+    const jaVoice = voices.find(v => v.lang === 'ja-JP' && v.name.includes('Google')) || 
+                    voices.find(v => v.lang === 'ja-JP') || 
+                    voices.find(v => v.lang.startsWith('ja'));
+    
+    if (jaVoice) {
+      utterance.voice = jaVoice;
+    }
+    
     utterance.lang = 'ja-JP';
-    utterance.rate = 0.95;
+    utterance.rate = rate; // 稍微慢一点，听得更清楚
+    utterance.pitch = 1.0;
+    
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
+    
     window.speechSynthesis.speak(utterance);
+    
+    // 兜底机制：如果5秒还没结束，强制结束
+    setTimeout(() => resolve(), 5000);
   });
 }
 
-export async function fetchLearningContent(
-  category: LearningCategory, 
-  date: string, 
-  isAppend: boolean = false
-): Promise<Article[]> {
-  const batchId = Date.now().toString(36);
-  
-  // 增加抓取成功的确定性：降低随机度，提高专注度
-  const fetchAttempt = async (retryCount = 0): Promise<Article[]> => {
-    try {
-      const result = await callProxyAPI({
-        model: 'gemini-3-flash-preview',
-        contents: `Generate 5 high-quality Japanese ${category} articles for ${date}. Balanced levels (N1-N5).`,
-        config: {
-          systemInstruction: OPTIMIZED_INSTRUCTION,
-          responseMimeType: "application/json",
-          temperature: 0.2, // 降低随机性，提高生成速度和准确度
-        }
-      });
+const OPTIMIZED_INSTRUCTION = `Expert Japanese Educator. 
+Rules: Output 5 JSON objects with <ruby> for all Kanji. Semantic tags: <span class="g-syntax">, <span class="g-particle">.`;
 
-      const jsonStr = cleanJsonResponse(result.text || "[]");
-      const data = JSON.parse(jsonStr);
-      
-      const newArticles = data.map((a: any, i: number) => ({ 
-        ...a, 
-        id: `${category}-${date}-${batchId}-${i}`, 
-        category, 
-        date 
-      }));
-      
-      saveArticlesToCache(newArticles);
-      return newArticles;
-    } catch (e) {
-      if (retryCount < 1) { // 失败重试一次
-        console.warn("Retrying fetch...", e);
-        return fetchAttempt(retryCount + 1);
-      }
-      console.error("Fetch failed after retries", e);
-      throw e;
+// Fix: Added isAppend parameter to resolve 'Expected 2 arguments, but got 3' errors in callers
+export async function fetchLearningContent(category: LearningCategory, date: string, isAppend: boolean = false): Promise<Article[]> {
+  const result = await callProxyAPI({
+    model: 'gemini-3-flash-preview',
+    contents: `Generate 5 Japanese ${category} articles for ${date}. Balanced levels.`,
+    config: {
+      systemInstruction: OPTIMIZED_INSTRUCTION,
+      responseMimeType: "application/json",
+      temperature: 0.2
     }
-  };
-
-  return fetchAttempt();
+  });
+  const data = JSON.parse(cleanJsonResponse(result.text || "[]"));
+  // Fix: Generate unique IDs when appending to allow multiple batches for the same day/category
+  const timestamp = Date.now();
+  const articles = data.map((a: any, i: number) => ({ 
+    ...a, 
+    id: isAppend ? `${category}-${date}-${i}-${timestamp}` : `${category}-${date}-${i}`, 
+    category, 
+    date 
+  }));
+  saveArticlesToCache(articles);
+  return articles;
 }
 
 /**
- * Fix: Added generateQuizzes to satisfy errors in Practice.tsx
- */
-export async function generateQuizzes(context: string): Promise<QuizQuestion[]> {
-  try {
-    const result = await callProxyAPI({
-      model: 'gemini-3-flash-preview',
-      contents: `Generate 5 Japanese quizzes based on: ${context}`,
-      config: {
-        systemInstruction: `Expert Japanese Language Teacher.
-Output JSON ARRAY of 5 objects.
-Structure: {type, question, options:[], correctAnswer:index, explanation, audioText}.
-Rules:
-1. type: 'listening' | 'reading' | 'grammar' | 'vocabulary'.
-2. Use <ruby> for all Kanji in question and options.
-3. audioText: plain text version for TTS if type is 'listening'.
-4. correctAnswer is 0-3.`,
-        responseMimeType: "application/json",
-        temperature: 0.5,
-      }
-    });
-    const jsonStr = cleanJsonResponse(result.text || "[]");
-    const data = JSON.parse(jsonStr);
-    return data.map((q: any, i: number) => ({ 
-      ...q, 
-      id: `quiz-${Date.now()}-${i}`,
-      correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : 0
-    }));
-  } catch (e) {
-    console.error("Quiz generation failed", e);
-    throw e;
-  }
-}
-
-/**
- * Fix: Added fetchTopSongs to satisfy errors in Songs.tsx
+ * 歌曲抓取优化：指定来源并增加数量
  */
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
-      model: 'gemini-3-flash-preview',
-      contents: `Generate 5 Japanese worship songs (batch starting from rank ${offset + 1})`,
+      model: 'gemini-3-pro-preview', // 使用增强版以获得更好的搜索效果
+      contents: `Fetch exactly 10 real Japanese worship songs from https://sanbikashi.net/hallelujah/. Provide lyrics with <ruby> and translations. Batch starting from offset ${offset}.`,
       config: {
-        systemInstruction: `Japanese Worship Music Expert.
-Output JSON ARRAY of 5 objects.
-Structure: {title, artist, lyrics, translation, youtubeUrl}.
-Rules:
-1. Use <ruby> for all Kanji in lyrics.
-2. lyrics: full song text.
-3. translation: full chinese translation.
-4. youtubeUrl: a valid YouTube link placeholder (e.g., https://www.youtube.com/watch?v=...).`,
-        responseMimeType: "application/json",
-        temperature: 0.4,
+        tools: [{ googleSearch: {} }],
+        systemInstruction: `Japanese Worship Music Expert. Output JSON ARRAY of 10 objects. 
+        Structure: {title, artist, lyrics, translation, youtubeUrl}. 
+        IMPORTANT: Search the specific website for actual lyrics content.`,
+        responseMimeType: "application/json"
       }
     });
     const jsonStr = cleanJsonResponse(result.text || "[]");
     const data = JSON.parse(jsonStr);
-    return data.map((s: any, i: number) => ({ 
-      ...s, 
-      id: `song-${offset + i}`, 
-      rank: offset + i + 1 
-    }));
+    return data.map((s: any, i: number) => ({ ...s, id: `song-${Date.now()}-${i}`, rank: offset + i + 1 }));
   } catch (e) {
     console.error("Song fetch failed", e);
-    throw e;
+    return [];
   }
 }
 
-/**
- * Fix: Added fetchBibleVerses to satisfy errors in Bible.tsx
- */
 export async function fetchBibleVerses(excludeIds: string[] = []): Promise<BibleVerse[]> {
-  try {
-    const result = await callProxyAPI({
-      model: 'gemini-3-flash-preview',
-      contents: `Generate 5 inspiring Japanese Bible verses. Avoid these IDs if possible: ${excludeIds.join(',')}.`,
-      config: {
-        systemInstruction: `Expert Japanese Bible Scholar.
-Output JSON ARRAY of 5 objects.
-Structure: {id, reference, japaneseText, chineseTranslation, sentences:[], translations:[], vocabulary:[{word, reading, meaning}], grammar:[{point, explanation, example}]}.
-Rules:
-1. Use <ruby> for all Kanji in japaneseText, sentences, vocabulary.word, and grammar.example.
-2. sentences and translations must be 1-to-1 breakdown of the verse.
-3. id should be unique string.`,
-        responseMimeType: "application/json",
-        temperature: 0.3,
-      }
-    });
-    const jsonStr = cleanJsonResponse(result.text || "[]");
-    const data = JSON.parse(jsonStr);
-    const verses = data.map((v: any, i: number) => ({ 
-      ...v, 
-      id: v.id || `v-bible-${Date.now()}-${i}` 
-    }));
-    saveBibleVersesToCache(verses);
-    return verses;
-  } catch (e) {
-    console.error("Bible verse fetch failed", e);
-    throw e;
-  }
+  const result = await callProxyAPI({
+    model: 'gemini-3-flash-preview',
+    contents: `5 inspiring Japanese Bible verses.`,
+    config: {
+      systemInstruction: `Expert Japanese Bible Scholar. JSON output. Use <ruby>.`,
+      responseMimeType: "application/json"
+    }
+  });
+  const data = JSON.parse(cleanJsonResponse(result.text || "[]"));
+  const verses = data.map((v: any, i: number) => ({ ...v, id: `v-${Date.now()}-${i}` }));
+  saveBibleVersesToCache(verses);
+  return verses;
+}
+
+export async function generateQuizzes(context: string): Promise<QuizQuestion[]> {
+  const result = await callProxyAPI({
+    model: 'gemini-3-flash-preview',
+    contents: `5 quizzes based on: ${context}`,
+    config: {
+      systemInstruction: `Expert Japanese Teacher. JSON output. Use <ruby>.`,
+      responseMimeType: "application/json"
+    }
+  });
+  return JSON.parse(cleanJsonResponse(result.text || "[]"));
 }
