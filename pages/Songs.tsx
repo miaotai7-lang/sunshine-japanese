@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { fetchTopSongs, playTTS } from '../services/geminiService';
-import { Song } from '../types';
+import { fetchTopSongs, playTTS, segmentsToText } from '../services/geminiService';
+import { Song, TextSegment } from '../types';
 
 export const Songs: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -37,12 +36,22 @@ export const Songs: React.FC = () => {
 
   const handleRead = async (song: Song) => {
     setIsReading(song.id);
-    await playTTS(song.lyrics);
+    const fullText = song.lyricsSegments.map(line => segmentsToText(line)).join('\n');
+    await playTTS(fullText);
     setIsReading(null);
   };
 
+  const renderSegments = (segments: TextSegment[]) => {
+    return segments.map((seg, idx) => (
+      <ruby key={idx}>
+        {seg.t}
+        {seg.r && <rt>{seg.r}</rt>}
+      </ruby>
+    ));
+  };
+
   return (
-    <div className={`space-y-6 pb-24 animate-fadeIn ${showFurigana ? '' : 'hide-furigana'}`}>
+    <div className={`space-y-6 pb-24 animate-fadeIn ${!showFurigana ? 'hide-readings' : ''}`}>
       <header className="flex justify-between items-start px-1">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">赞美之泉专栏</h2>
@@ -59,19 +68,14 @@ export const Songs: React.FC = () => {
               <i className="fa-solid fa-music text-2xl"></i>
            </div>
            <p className="text-slate-400 text-sm font-bold mb-6">点击下方按钮，AI 将精准检索<br/>“赞美之泉”出品的经典日语歌曲</p>
-           <button 
-             onClick={() => loadSongs(false)}
-             className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs shadow-xl active:scale-95"
-           >
-             检索赞美之泉 (2首)
-           </button>
+           <button onClick={() => loadSongs(false)} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs shadow-xl active:scale-95">检索赞美之泉 (2首)</button>
         </div>
       )}
 
       {(loading || loadingMore) && (
-        <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 flex flex-col items-center gap-4 text-center">
+        <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 flex flex-col items-center gap-4 text-center shadow-sm">
            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-           <p className="text-indigo-600 font-black text-[10px] uppercase tracking-widest">Finding spiritual melodies from SOP...</p>
+           <p className="text-indigo-600 font-black text-[10px] uppercase tracking-widest">Finding spiritual melodies...</p>
         </div>
       )}
 
@@ -79,9 +83,7 @@ export const Songs: React.FC = () => {
         {songs.map((song) => (
           <div key={song.id} className={`bg-white rounded-[2.5rem] p-5 border border-slate-100 shadow-sm transition-all overflow-hidden ${expandedSong === song.id ? 'ring-2 ring-indigo-50' : ''}`}>
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-black italic shrink-0">
-                {song.rank}
-              </div>
+              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center font-black italic shrink-0">{song.rank}</div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-slate-800 text-lg truncate">{song.title}</h3>
                 <p className="text-xs text-slate-400 truncate">{song.artist}</p>
@@ -94,13 +96,19 @@ export const Songs: React.FC = () => {
             {expandedSong === song.id && (
               <div className="mt-6 pt-6 border-t border-slate-50 space-y-6 animate-fadeIn">
                 <div className="flex gap-2">
-                  <a href={song.youtubeUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-rose-600 text-white py-3 rounded-2xl font-black text-[10px] text-center shadow-md active:scale-95 uppercase tracking-widest"><i className="fa-brands fa-youtube mr-2"></i>YouTube</a>
+                  <a href={song.youtubeUrl} target="_blank" rel="noopener noreferrer" className="flex-1 bg-rose-600 text-white py-3 rounded-2xl font-black text-[10px] text-center shadow-md active:scale-95 uppercase tracking-widest flex items-center justify-center gap-2">
+                    <i className="fa-brands fa-youtube"></i> YouTube
+                  </a>
                   <button onClick={() => handleRead(song)} disabled={!!isReading} className="flex-1 bg-indigo-50 text-indigo-600 py-3 rounded-2xl font-black text-[10px] border border-indigo-100 active:scale-95 uppercase tracking-widest">
                     <i className={`fa-solid ${isReading === song.id ? 'fa-circle-notch animate-spin' : 'fa-headset'} mr-2`}></i>AI 导读
                   </button>
                 </div>
                 <div className="space-y-4">
-                   <div className="Japanese-text text-lg text-slate-700 leading-[2.5] whitespace-pre-wrap bg-slate-50/50 p-6 rounded-3xl border border-slate-100" dangerouslySetInnerHTML={{ __html: song.lyrics }}></div>
+                   <div className="Japanese-text text-lg text-slate-700 leading-[2.5] bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
+                     {song.lyricsSegments.map((line, idx) => (
+                       <div key={idx} className="mb-2">{renderSegments(line)}</div>
+                     ))}
+                   </div>
                    <div className="text-slate-500 text-sm font-medium leading-[1.8] whitespace-pre-wrap bg-emerald-50/20 p-6 rounded-3xl border border-emerald-50/50">{song.translation}</div>
                 </div>
               </div>
@@ -110,9 +118,7 @@ export const Songs: React.FC = () => {
       </div>
 
       {songs.length > 0 && !loadingMore && (
-        <button onClick={() => loadSongs(true)} className="w-full bg-white border-2 border-indigo-100 text-indigo-600 font-black py-5 rounded-[2rem] shadow-sm active:scale-95">
-          继续检索赞美之泉歌曲
-        </button>
+        <button onClick={() => loadSongs(true)} className="w-full bg-white border-2 border-indigo-100 text-indigo-600 font-black py-5 rounded-[2rem] shadow-sm active:scale-95">继续检索赞美之泉歌曲</button>
       )}
     </div>
   );
