@@ -2,6 +2,7 @@
 import { JLPTLevel, Article, Song, LearningCategory, QuizQuestion, BibleVerse } from "../types";
 import { saveArticlesToCache, saveBibleVersesToCache } from "./cacheService";
 
+// 统一调用接口
 async function callProxyAPI(payload: any) {
   const response = await fetch('/api/generate', {
     method: 'POST',
@@ -43,7 +44,7 @@ export function playTTS(text: string, rate: number = 0.85): Promise<void> {
 }
 
 /**
- * 学习语料获取：限制特定高质量域名
+ * 学习语料获取：使用 Flash 模型追求极致速度
  */
 export async function fetchLearningContent(
   category: LearningCategory, 
@@ -51,27 +52,21 @@ export async function fetchLearningContent(
   date: string, 
   isAppend: boolean = false
 ): Promise<Article[]> {
-  // 定义特定网站地图，缩小搜索范围以提速
   const siteFilters = {
-    news: 'site:nhk.or.jp/news/easy', // NHK Easy News 专为学习者设计
-    forum: 'site:note.com OR site:ameblo.jp', // 日本主流博客
-    trending: 'site:kotobank.jp OR site:dic.nicovideo.jp' // 词典与流行语百科
-  };
-
-  const prompts = {
-    news: `Search ${siteFilters.news} for 2 recent Japanese news articles suitable for JLPT ${level}.`,
-    forum: `Search ${siteFilters.forum} for 2 authentic Japanese blog posts about daily life for JLPT ${level}.`,
-    trending: `Search ${siteFilters.trending} for 2 Japanese slang/trending words and explain them for JLPT ${level}.`
+    news: 'site:nhk.or.jp/news/easy',
+    forum: 'site:note.com OR site:ameblo.jp',
+    trending: 'site:kotobank.jp'
   };
 
   const result = await callProxyAPI({
-    model: 'gemini-3-pro-preview',
-    contents: `${prompts[category]} Query date: ${date}.`,
+    model: 'gemini-3-flash-preview', // 切换到 Flash 模型，速度提升的关键
+    contents: `Search ${siteFilters[category]} for 2 Japanese entries for JLPT ${level}. Date: ${date}.`,
     config: {
       tools: [{ googleSearch: {} }],
-      systemInstruction: `You are an expert Japanese teacher. ONLY use sources from the provided site filter. 
-      Output exactly 2 JSON objects in an array. MUST use <ruby> for all Kanji.
-      JSON structure: {title, summary, sentences:[], translations:[], level, vocabulary:[], grammar:[]}.`,
+      systemInstruction: `You are a Fast Japanese Content Generator. 
+      Output exactly 2 JSON items in an array. 
+      JSON structure: {title, summary, sentences:[], translations:[], level, vocabulary:[], grammar:[]}.
+      Use <ruby> for ALL Kanji. Be concise to ensure high speed.`,
       responseMimeType: "application/json"
     }
   });
@@ -88,18 +83,18 @@ export async function fetchLearningContent(
 }
 
 /**
- * 赞美诗搜索：锁定专业赞美诗库
+ * 赞美诗搜索：Flash 模型生成歌词注音速度极快
  */
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
-      model: 'gemini-3-pro-preview',
-      // 锁定专门的赞美诗歌词库，大幅提升速度和歌词准确度
-      contents: `Search (site:praise-library.com OR site:m-lp.com) for 2 Japanese Christian worship songs. Lyrics must include <ruby>. Offset: ${offset}.`,
+      model: 'gemini-3-flash-preview', // Flash 模型能极快地处理繁琐的 Ruby 标签生成
+      contents: `Directly provide 2 popular Japanese Christian worship songs. Use Search only if needed. Offset: ${offset}.`,
       config: {
         tools: [{ googleSearch: {} }],
         systemInstruction: `Worship Music Expert. Output exactly 2 JSON objects in an array. 
-        Structure: {title, artist, lyrics, translation, youtubeUrl}. Ensure lyrics are formatted for learning with <ruby>.`,
+        Structure: {title, artist, lyrics, translation, youtubeUrl}. 
+        CRITICAL: Provide FULL lyrics with <ruby> for all Kanji. Speed is priority.`,
         responseMimeType: "application/json"
       }
     });
@@ -112,14 +107,14 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
 }
 
 /**
- * 圣经金句获取：由于圣经文本固定，AI 通常极快，保持现有的高质量检索
+ * 圣经金句：Flash 模型自带圣经知识库，几乎不需要联网搜索
  */
 export async function fetchBibleVerses(excludeIds: string[] = []): Promise<BibleVerse[]> {
   const result = await callProxyAPI({
-    model: 'gemini-3-pro-preview',
-    contents: `Fetch 2 inspiring Japanese Bible verses using 新共同訳 (New Interconfessional Version).`,
+    model: 'gemini-3-flash-preview',
+    contents: `Give me 2 famous Japanese Bible verses (新共同訳).`,
     config: {
-      tools: [{ googleSearch: {} }],
+      // 移除 googleSearch 工具，依靠模型内置知识库能瞬间输出
       systemInstruction: `Bible Scholar. JSON output (2 items). Use <ruby> for Kanji. 
       Structure: {reference, japaneseText, chineseTranslation, sentences:[], translations:[], vocabulary:[], grammar:[]}.`,
       responseMimeType: "application/json"
