@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getStats } from '../services/statsService';
 import { fetchLearningContent } from '../services/geminiService';
+// Added missing JLPTLevel import to fix type errors in prefetch logic
+import { JLPTLevel } from '../types';
 
 export const Home: React.FC = () => {
   const [stats, setStats] = useState({ streak: 0, totalWords: 0, chartData: [0,0,0,0,0,0,0], todayPoints: 0 });
@@ -46,9 +48,10 @@ export const Home: React.FC = () => {
       console.log("閃閃開発: 东京 3:00 预热抓取启动...");
       try {
         // 静默抓取 N5-N1 混合内容
-        // Fix: fetchLearningContent only accepts 3 parameters (category, date, isAppend)
-        await fetchLearningContent('news', todayStr, false);
-        await fetchLearningContent('forum', todayStr, false);
+        // Fix: fetchLearningContent requires (category, level, date, isAppend). 
+        // Defaulting to JLPTLevel.N3 for background prefetching.
+        await fetchLearningContent('news', JLPTLevel.N3, todayStr, false);
+        await fetchLearningContent('forum', JLPTLevel.N3, todayStr, false);
         localStorage.setItem('last_prefetch_date', todayStr);
       } catch (e) {
         console.error("预热抓取失败", e);
