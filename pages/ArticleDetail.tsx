@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Article } from '../types';
-import { playTTS } from '../services/geminiService';
+import { Article, TextSegment } from '../types';
+import { playTTS, segmentsToText } from '../services/geminiService';
 import { getArticleById } from '../services/cacheService';
 
 export const ArticleDetail: React.FC = () => {
@@ -23,21 +23,19 @@ export const ArticleDetail: React.FC = () => {
 
   if (!article) return <div className="p-10 text-center font-black">加载中...</div>;
 
-  const handleTTS = async (text: string, sid: string) => {
+  const handleTTS = async (segments: TextSegment[], sid: string) => {
     setPlayingId(sid);
-    await playTTS(text);
+    await playTTS(segmentsToText(segments));
     setPlayingId(null);
   };
 
-  // 辅助函数：渲染带假名的文字块
-  const renderRichText = (text: string, reading?: string) => {
-    if (!reading) return <span>{text}</span>;
-    return (
-      <span className="inline-flex flex-col items-center mx-0.5 align-bottom">
-        <span className="furigana">{reading}</span>
-        <span>{text}</span>
-      </span>
-    );
+  const renderSegments = (segments: TextSegment[]) => {
+    return segments.map((seg, idx) => (
+      <ruby key={idx}>
+        {seg.t}
+        {seg.r && <rt>{seg.r}</rt>}
+      </ruby>
+    ));
   };
 
   return (
@@ -45,17 +43,19 @@ export const ArticleDetail: React.FC = () => {
       <div className="flex justify-between items-center py-4 sticky top-0 bg-slate-50/90 backdrop-blur-md z-30">
         <button onClick={() => navigate(-1)} className="text-slate-400 font-black"><i className="fa-solid fa-chevron-left"></i></button>
         <div className="flex gap-2">
-          <button onClick={() => setShowReadings(!showReadings)} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${showReadings ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200 text-slate-400'}`}>
+          <button onClick={() => setShowReadings(!showReadings)} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${showReadings ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
             {showReadings ? '隐藏假名' : '显示假名'}
           </button>
-          <button onClick={() => setShowTranslation(!showTranslation)} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${showTranslation ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-slate-200 text-slate-400'}`}>
+          <button onClick={() => setShowTranslation(!showTranslation)} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${showTranslation ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
             {showTranslation ? '隐藏翻译' : '显示翻译'}
           </button>
         </div>
       </div>
 
       <header className="mb-6">
-        <h2 className="text-2xl font-black text-slate-800 mb-2">{article.title}</h2>
+        <h2 className="text-2xl font-black text-slate-800 mb-2">
+          {article.titleSegments ? renderSegments(article.titleSegments) : article.title}
+        </h2>
         <div className="bg-white p-5 rounded-3xl border border-slate-100 text-sm text-slate-500 italic">
           {article.summary}
         </div>
@@ -70,13 +70,13 @@ export const ArticleDetail: React.FC = () => {
       </nav>
 
       <div className="space-y-4">
-        {activeTab === 'content' && article.sentences.map((s, i) => (
+        {activeTab === 'content' && article.sentences.map((segments, i) => (
           <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex gap-4">
             <div className="flex-1">
-              <p className="Japanese-text text-slate-800">{s}</p>
+              <p className="Japanese-text text-slate-800">{renderSegments(segments)}</p>
               {showTranslation && <p className="text-slate-400 text-sm mt-4 border-t pt-4 font-medium">{article.translations[i]}</p>}
             </div>
-            <button onClick={() => handleTTS(s, `s-${i}`)} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${playingId === `s-${i}` ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-50 text-indigo-400'}`}>
+            <button onClick={() => handleTTS(segments, `s-${i}`)} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${playingId === `s-${i}` ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-50 text-indigo-400'}`}>
               <i className={`fa-solid ${playingId === `s-${i}` ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
             </button>
           </div>
@@ -91,7 +91,7 @@ export const ArticleDetail: React.FC = () => {
               </div>
               {showTranslation && <p className="text-sm text-slate-500 font-medium">{v.meaning}</p>}
             </div>
-            <button onClick={() => handleTTS(v.word, `v-${i}`)} className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl"><i className="fa-solid fa-volume-high"></i></button>
+            <button onClick={() => playTTS(v.word)} className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl"><i className="fa-solid fa-volume-high"></i></button>
           </div>
         ))}
 
