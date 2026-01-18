@@ -1,11 +1,10 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Article } from '../types';
 import { playTTS } from '../services/geminiService';
 import { getArticleById } from '../services/cacheService';
 import { getLevelColor } from './Learning';
-import { recordActivity } from '../services/statsService';
 
 export const ArticleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -14,203 +13,90 @@ export const ArticleDetail: React.FC = () => {
   
   const [article, setArticle] = useState<Article | null>(location.state?.article || null);
   const [activeTab, setActiveTab] = useState<'content' | 'vocab' | 'grammar'>('content');
-  const [starred, setStarred] = useState<Set<string>>(new Set());
-  const [showFurigana, setShowFurigana] = useState(true);
-  const [showTranslation, setShowTranslation] = useState(true);
-  
   const [playingId, setPlayingId] = useState<string | null>(null);
-  
-  // 录音相关状态
-  const [recordings, setRecordings] = useState<Record<string, string>>({});
-  const [isRecording, setIsRecording] = useState<string | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     if (!article && id) {
       const cached = getArticleById(id);
       if (cached) setArticle(cached);
     }
-    const collections = JSON.parse(localStorage.getItem('user_collection') || '[]');
-    setStarred(new Set(collections.map((item: any) => String(item.id))));
-    recordActivity(5);
-
-    return () => {
-      // 销毁时清理
-      Object.values(recordings).forEach(url => URL.revokeObjectURL(url));
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-    };
   }, [id, article]);
 
-  if (!article) return <div className="p-10 text-center animate-pulse">正在载入离线语料...</div>;
+  if (!article) return <div className="p-10 text-center animate-pulse text-slate-400 font-black">语料加载中...</div>;
 
+  /**
+   * 使用本地 TTS 发音
+   */
   const handleTTS = async (text: string, id: string) => {
-    if (playingId) return;
+    // 本地 TTS 非常快，为了给用户视觉反馈，可以保留极短的激活状态
     setPlayingId(id);
     await playTTS(text);
-    setPlayingId(null);
+    // 播放开始后延迟一小会儿取消高亮
+    setTimeout(() => setPlayingId(null), 500);
   };
-
-  // 改进的录音逻辑：点击切换模式
-  const toggleRecording = async (key: string) => {
-    if (isRecording === key) {
-      // 停止录音
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
-      }
-      setIsRecording(null);
-    } else {
-      // 开始录音
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streamRef.current = stream;
-        
-        // 自动选择支持的格式
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
-          ? 'audio/webm' 
-          : MediaRecorder.isTypeSupported('audio/mp4') 
-            ? 'audio/mp4' 
-            : '';
-
-        const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-        mediaRecorderRef.current = recorder;
-        audioChunksRef.current = [];
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) audioChunksRef.current.push(e.data);
-        };
-
-        recorder.onstop = () => {
-          const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
-          const url = URL.createObjectURL(blob);
-          setRecordings(p => ({ ...p, [key]: url }));
-          
-          // 关闭轨道释放资源
-          if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
-          }
-          recordActivity(2);
-        };
-
-        recorder.start();
-        setIsRecording(key);
-      } catch (e) {
-        console.error("Recording error:", e);
-        alert("无法访问麦克风，请确保已授予权限。");
-      }
-    }
-  };
-
-  const playRecording = (url: string) => {
-    const audio = new Audio(url);
-    audio.play().catch(e => console.error("Playback error:", e));
-  };
-
-  const toggleStar = (itemId: string, type: string, content: any) => {
-    setStarred(prev => {
-      const next = new Set(prev);
-      const collections = JSON.parse(localStorage.getItem('user_collection') || '[]');
-      if (next.has(itemId)) {
-        next.delete(itemId);
-        localStorage.setItem('user_collection', JSON.stringify(collections.filter((i: any) => i.id !== itemId)));
-      } else {
-        next.add(itemId);
-        localStorage.setItem('user_collection', JSON.stringify([...collections, { id: itemId, type, content, addedAt: Date.now(), nextReviewAt: Date.now() + 86400000, reviewStage: 1 }]));
-        recordActivity(3);
-      }
-      return next;
-    });
-  };
-
-  const cleanText = (text: string) => text.replace(/<[^>]*>?/gm, '');
-  const processContent = (text: string) => text.replace(/^(content|title|word|meaning|point|explanation|example):\s*/i, "").trim();
 
   return (
-    <div className={`pb-24 animate-fadeIn ${showFurigana ? '' : 'hide-furigana'}`}>
-      <div className="flex justify-between items-center mb-6 gap-2 sticky top-0 bg-slate-50/90 backdrop-blur-md z-20 py-3 px-1">
-        <button onClick={() => navigate(-1)} className="text-slate-400 text-sm font-bold"><i className="fa-solid fa-chevron-left mr-1"></i>返回</button>
-        <div className="flex gap-2">
-          <button onClick={() => setShowFurigana(!showFurigana)} className={`px-4 py-2 rounded-2xl text-[10px] font-black tracking-widest ${showFurigana ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-500'}`}>
-             假名
-          </button>
-          <button onClick={() => setShowTranslation(!showTranslation)} className={`px-4 py-2 rounded-2xl text-[10px] font-black tracking-widest ${showTranslation ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-500'}`}>
-             中文
-          </button>
-        </div>
+    <div className="pb-24 animate-fadeIn">
+      <div className="flex justify-between items-center mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-md z-20 py-3">
+        <button onClick={() => navigate(-1)} className="text-slate-400 text-sm font-bold flex items-center gap-2">
+          <i className="fa-solid fa-chevron-left"></i> 返回
+        </button>
+        <span className={`text-[10px] font-black px-3 py-1 rounded-xl ${getLevelColor(article.level)}`}>{article.level} 深度解析</span>
       </div>
 
-      <header className="mb-8 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
-        <div className="flex justify-between items-start mb-4">
-          <span className={`text-[10px] font-black px-3 py-1 rounded-xl shadow-sm ${getLevelColor(article.level)}`}>{article.level}</span>
-          <span className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.2em]">INTENSIVE</span>
+      <header className="mb-8">
+        <h2 className="text-2xl font-black leading-tight Japanese-text text-slate-800 mb-4" dangerouslySetInnerHTML={{ __html: article.title }}></h2>
+        <div className="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100/50 italic text-indigo-700 text-sm leading-relaxed">
+           {article.summary}
         </div>
-        <h2 className="text-2xl font-bold leading-relaxed Japanese-text text-slate-800" dangerouslySetInnerHTML={{ __html: processContent(article.title) }}></h2>
       </header>
 
-      <nav className="flex gap-2 mb-8 p-1.5 bg-slate-100 rounded-3xl overflow-x-auto no-scrollbar">
+      <nav className="flex gap-2 mb-8 p-1.5 bg-slate-200/50 rounded-3xl sticky top-14 z-20">
         {(['content', 'vocab', 'grammar'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 px-4 py-3 text-xs font-black rounded-2xl transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
-            {tab === 'content' ? `正文拆解` : tab === 'vocab' ? `重点词汇` : `语法分析`}
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 px-4 py-3 text-xs font-black rounded-2xl transition-all ${activeTab === tab ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500'}`}>
+            {tab === 'content' ? '原文拆解' : tab === 'vocab' ? '核心词汇' : '语法透析'}
           </button>
         ))}
       </nav>
 
-      <div className="space-y-6">
+      <div className="space-y-8">
         {activeTab === 'content' && (
-          <div className="space-y-5">
-            {article.sentences?.map((sentence, idx) => {
-              const sId = `s-${idx}`;
-              return (
-                <div key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4 group transition-all hover:shadow-md">
-                  <p className="text-lg Japanese-text text-slate-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: processContent(sentence) }}></p>
-                  {showTranslation && article.translations?.[idx] && <p className="text-slate-400 text-sm font-medium border-l-4 border-slate-50 pl-4">{article.translations[idx]}</p>}
-                  
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                    <div className="flex gap-3">
-                      <button 
-                        onClick={() => handleTTS(cleanText(sentence), sId)} 
-                        className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${playingId === sId ? 'bg-indigo-600 text-white animate-pulse' : 'bg-indigo-50 text-indigo-600'}`}
-                      >
-                        <i className={`fa-solid ${playingId === sId ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
-                      </button>
-                      
-                      <button 
-                        onClick={() => toggleRecording(sId)} 
-                        className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all ${isRecording === sId ? 'bg-rose-600 text-white animate-pulse shadow-lg scale-110' : 'bg-rose-50 text-rose-600'}`}
-                      >
-                        <i className={`fa-solid ${isRecording === sId ? 'fa-stop' : 'fa-microphone'}`}></i>
-                      </button>
-                      
-                      {recordings[sId] && !isRecording && (
-                        <button 
-                          onClick={() => playRecording(recordings[sId])}
-                          className="w-11 h-11 flex items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 active:scale-90"
-                        >
-                          <i className="fa-solid fa-play"></i>
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm leading-[2.5]">
+             <div className="Japanese-text text-lg text-slate-800 space-y-8" dangerouslySetInnerHTML={{ __html: article.content }}></div>
+             <div className="mt-12 pt-8 border-t border-slate-50">
+               <h4 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-6">句子级详析</h4>
+               <div className="space-y-8">
+                 {article.sentences?.map((s, i) => (
+                   <div key={i} className="group">
+                     <div className="flex justify-between items-start gap-4 mb-2">
+                        <p className="Japanese-text text-slate-700 font-medium" dangerouslySetInnerHTML={{ __html: s }}></p>
+                        <button onClick={() => handleTTS(s, `s-${i}`)} className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${playingId === `s-${i}` ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-50 text-slate-300 hover:text-indigo-600'}`}>
+                          <i className={`fa-solid ${playingId === `s-${i}` ? 'fa-volume-high animate-pulse' : 'fa-volume-high'} text-xs`}></i>
                         </button>
-                      )}
-                    </div>
-                    
-                    <button onClick={() => toggleStar(`s-${article.id}-${idx}`, 'sentence', sentence)} className={`${starred.has(`s-${article.id}-${idx}`) ? 'text-amber-500' : 'text-slate-300'} transition-colors`}>
-                      <i className="fa-solid fa-star text-lg"></i>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                     </div>
+                     <p className="text-slate-400 text-xs font-bold pl-4 border-l-2 border-slate-100">{article.translations?.[i]}</p>
+                   </div>
+                 ))}
+               </div>
+             </div>
           </div>
         )}
 
         {activeTab === 'vocab' && (
           <div className="grid gap-4">
-            {article.vocabulary?.map((vocab, vIdx) => (
-              <div key={vIdx} className="bg-white p-6 rounded-3xl border border-slate-100 flex flex-col shadow-sm">
-                <div className="flex justify-between items-start">
-                  <div className="font-bold text-xl text-slate-800 Japanese-text" dangerouslySetInnerHTML={{ __html: processContent(vocab.word) }}></div>
-                  <button onClick={() => handleTTS(cleanText(vocab.word), `v-${vIdx}`)} className="w-10 h-10 rounded-2xl bg-slate-50 text-slate-400 hover:text-indigo-600"><i className="fa-solid fa-volume-high"></i></button>
+            {article.vocabulary?.map((v, i) => (
+              <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm group">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="text-xl Japanese-text font-black text-slate-800" dangerouslySetInnerHTML={{ __html: v.word }}></span>
+                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">[{v.reading}]</span>
+                  </div>
+                  <p className="text-sm text-slate-500 font-medium">{v.meaning}</p>
                 </div>
-                {showTranslation && <div className="text-sm text-slate-500 font-bold bg-slate-50/50 p-4 rounded-2xl mt-4 leading-relaxed">{processContent(vocab.meaning)}</div>}
+                {/* 重点词汇发音：优先读假名字段以保证 100% 准确 */}
+                <button onClick={() => handleTTS(v.reading || v.word, `v-${i}`)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${playingId === `v-${i}` ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600'}`}>
+                   <i className={`fa-solid ${playingId === `v-${i}` ? 'fa-volume-high animate-pulse' : 'fa-volume-high'}`}></i>
+                </button>
               </div>
             ))}
           </div>
@@ -218,21 +104,18 @@ export const ArticleDetail: React.FC = () => {
 
         {activeTab === 'grammar' && (
           <div className="space-y-6">
-            {article.grammar?.map((g, gIdx) => (
-              <div key={gIdx} className="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-3"><i className="fa-solid fa-quote-right text-indigo-50 text-4xl"></i></div>
-                <h4 className="font-black text-indigo-700 text-xl mb-4 relative z-10">{processContent(g.point)}</h4>
-                {showTranslation && (
-                  <div className="space-y-5 relative z-10">
-                    <p className="text-sm font-bold text-slate-600 leading-relaxed">{processContent(g.explanation)}</p>
-                    <div className="bg-indigo-50/30 p-6 rounded-2xl border border-indigo-50">
-                      <p className="text-base Japanese-text text-slate-800 leading-relaxed font-medium mb-3" dangerouslySetInnerHTML={{ __html: processContent(g.example) }}></p>
-                      <button onClick={() => handleTTS(cleanText(g.example), `g-${gIdx}`)} className="text-indigo-500 text-xs font-black flex items-center gap-2">
-                        <i className="fa-solid fa-volume-high"></i> 点击朗读例句
-                      </button>
-                    </div>
-                  </div>
-                )}
+            {article.grammar?.map((g, i) => (
+              <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-5"><i className="fa-solid fa-feather text-6xl"></i></div>
+                <h4 className="font-black text-indigo-600 text-xl mb-4 relative z-10">{g.point}</h4>
+                <p className="text-slate-600 text-sm font-bold leading-relaxed mb-6 bg-slate-50 p-4 rounded-2xl">{g.explanation}</p>
+                <div className="bg-indigo-50/30 p-6 rounded-3xl border border-indigo-50">
+                   <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-2">Example</p>
+                   <p className="Japanese-text text-slate-800 font-medium mb-4 leading-relaxed" dangerouslySetInnerHTML={{ __html: g.example }}></p>
+                   <button onClick={() => handleTTS(g.example, `g-${i}`)} className={`text-[10px] font-black flex items-center gap-2 transition-all uppercase ${playingId === `g-${i}` ? 'text-indigo-600 scale-105' : 'text-indigo-400'}`}>
+                     <i className={`fa-solid ${playingId === `g-${i}` ? 'fa-volume-high animate-pulse' : 'fa-volume-high'}`}></i> 朗读例句
+                   </button>
+                </div>
               </div>
             ))}
           </div>
