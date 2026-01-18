@@ -19,32 +19,72 @@ function cleanJsonResponse(text: string): string {
 }
 
 /**
- * 极严苛的语义标注指令
+ * 极严苛的语义标注指令：要求生成全量长文
  */
-const MANDATORY_CHINESE_INSTRUCTION = `You are a Japanese linguistics expert for Chinese students.
-STRICT RULES:
-1. NO ENGLISH: All translations/explanations in Simplified Chinese only.
-2. RUBY: Use <ruby> for all kanji in Japanese body text.
-3. SEMANTIC TAGGING (MANDATORY): Wrap the following in <span> tags in 'content' and 'sentences':
-   - Grammar structures/patterns: <span class="g-syntax">...</span>
-   - Particles (は,が,を,に,へ,と,も,で,等): <span class="g-particle">...</span>
-   - Place names (cities, countries): <span class="g-place">...</span>
-4. PLAIN TEXT: Titles and meanings must be PLAIN TEXT (No Ruby, No Tags).
-5. LEVEL: Adhere strictly to requested JLPT levels.`;
+const MANDATORY_CHINESE_INSTRUCTION = `You are a professional Japanese curriculum developer for advanced learners.
+STRICT CONTENT RULES:
+1. FULL ARTICLES ONLY: 'content' must be a comprehensive article (300-500 Japanese characters), structured with paragraphs. DO NOT provide short summaries.
+2. NO ENGLISH: All translations/explanations in Simplified Chinese only.
+3. RUBY: Use <ruby> tags for ALL kanji in 'content', 'sentences', and 'vocabulary.word'.
+4. SEMANTIC TAGGING: Use <span class="g-syntax"> for grammar, <span class="g-particle"> for particles, and <span class="g-place"> for locations.
+5. CONTEXTUAL ANALYSIS: 'vocabulary' and 'grammar' MUST be extracted exclusively from the provided article 'content'.
+6. LEVEL STRATEGY: Focus on N3-N1 level structures while maintaining readability.`;
+
+/**
+ * 本地 TTS 播放器 (Web Speech API)
+ * 解决网络延迟，实现秒开发音
+ */
+export function playTTS(text: string): Promise<void> {
+  return new Promise((resolve) => {
+    // 移除所有 HTML 标签
+    const cleanText = text.replace(/<[^>]*>?/gm, '').trim();
+    if (!cleanText) return resolve();
+
+    // 取消当前正在播放的所有语音
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // 获取日语语音引擎
+    const voices = window.speechSynthesis.getVoices();
+    const jaVoice = voices.find(v => v.lang.startsWith('ja')) || voices.find(v => v.lang.includes('JP'));
+    
+    if (jaVoice) {
+      utterance.voice = jaVoice;
+    }
+    
+    utterance.lang = 'ja-JP';
+    utterance.rate = 0.9; // 稍微放慢一点，方便学习者听清
+    utterance.pitch = 1.0;
+
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+
+    window.speechSynthesis.speak(utterance);
+    
+    // 如果 100ms 后还没开始读，可能是浏览器限制（需交互），直接 resolve
+    setTimeout(() => resolve(), 1000);
+  });
+}
+
+// 确保在应用加载时预热语音列表
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  window.speechSynthesis.getVoices();
+}
 
 export async function fetchLearningContent(
   category: LearningCategory, 
   date: string, 
-  isAppend: boolean = false,
-  levelFocus: string = "N5-N1"
+  isAppend: boolean = false
 ): Promise<Article[]> {
-  const cached = getArticlesByDateAndCategory(date, category);
-  if (!isAppend && cached.length > 0) return cached;
+  const levels = ["N1", "N2", "N3", "N3", "N4", "N5"];
+  const randomLevel = levels[Math.floor(Math.random() * levels.length)];
 
-  const prompt = `Generate 3 Japanese learning articles for date ${date}. 
-  Category: ${category}. 
-  Level Focus: ${levelFocus}. 
-  Ensure rich semantic tagging for grammar, particles, and places.`;
+  const prompt = `Generate a COMPREHENSIVE Japanese article for date ${date}.
+  Category: ${category}.
+  Primary JLPT Target: ${randomLevel}.
+  Topic: Trending ${category} in Japan or global events from a Japanese perspective.
+  Requirement: Provide the FULL text, breakdown sentences, contextual vocabulary (with readings), and specific grammar analysis.`;
 
   try {
     const result = await callProxyAPI({
@@ -88,89 +128,26 @@ export async function fetchLearningContent(
     });
 
     const jsonStr = cleanJsonResponse(result.text || "[]");
-    const articles = JSON.parse(jsonStr).map((a: any, i: number) => ({ 
+    const newArticles = JSON.parse(jsonStr).map((a: any, i: number) => ({ 
       ...a, 
-      id: `${category}-${date}-${i}-${Math.random().toString(36).substr(2, 5)}`, 
+      id: `${category}-${date}-${Date.now()}-${i}`, 
       category, 
       date 
     }));
-    saveArticlesToCache(articles);
-    return articles;
+    
+    saveArticlesToCache(newArticles);
+    return newArticles;
   } catch (e) { 
-    console.error(e);
-    return cached;
-  }
-}
-
-// Function to decode raw PCM audio data from base64 string
-async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext,
-  sampleRate: number,
-  numChannels: number,
-): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
-  }
-  return buffer;
-}
-
-// Function to convert base64 to Uint8Array
-function decodeBase64(base64: string) {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
-export async function playTTS(text: string) {
-  try {
-    const result = await callProxyAPI({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Say naturally and clearly: ${text}` }] }],
-      config: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
-          },
-        },
-      }
-    });
-
-    const base64Audio = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (base64Audio) {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 24000});
-      const bytes = decodeBase64(base64Audio);
-      const audioBuffer = await decodeAudioData(bytes, audioContext, 24000, 1);
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContext.destination);
-      source.start();
-    }
-  } catch (e) {
-    console.error("TTS playback failed:", e);
+    console.error("Fetch failed", e);
+    return [];
   }
 }
 
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
-  const prompt = `Generate 5 Japanese Christian worship songs or hymns. Offset: ${offset}. Return in JSON format.
-  Include rank (number), title (string), artist (string), lyrics (string with <ruby> tags for all kanji), translation (string in Chinese), and youtubeUrl (dummy string).`;
-  
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: prompt,
+      contents: `Generate 5 Japanese Christian hymns. Titles must be plain text. Lyrics with <ruby>.`,
       config: {
         systemInstruction: MANDATORY_CHINESE_INSTRUCTION,
         responseMimeType: "application/json",
@@ -179,7 +156,6 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
           items: {
             type: "OBJECT",
             properties: {
-              rank: { type: "NUMBER" },
               title: { type: "STRING" },
               artist: { type: "STRING" },
               lyrics: { type: "STRING" },
@@ -191,24 +167,15 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
       }
     });
     const jsonStr = cleanJsonResponse(result.text || "[]");
-    return JSON.parse(jsonStr).map((s: any, i: number) => ({
-      ...s,
-      id: `song-${offset}-${i}-${Math.random().toString(36).substr(2, 5)}`
-    }));
-  } catch (e) {
-    console.error("Failed to fetch songs:", e);
-    return [];
-  }
+    return JSON.parse(jsonStr).map((s: any, i: number) => ({ ...s, id: `song-${offset}-${i}`, rank: offset + i + 1 }));
+  } catch (e) { return []; }
 }
 
 export async function fetchBibleVerses(excludeIds: string[] = []): Promise<BibleVerse[]> {
-  const prompt = `Generate 5 inspirational Bible verses in Japanese. 
-  Return JSON format with: reference, japaneseText (with <ruby> tags for all kanji), chineseTranslation, sentences (array of segments with <ruby>), translations (array of Chinese for segments), vocabulary, and grammar points.`;
-
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: prompt,
+      contents: `Provide 5 Japanese Bible verses with <ruby> and Chinese translation.`,
       config: {
         systemInstruction: MANDATORY_CHINESE_INSTRUCTION,
         responseMimeType: "application/json",
@@ -222,55 +189,25 @@ export async function fetchBibleVerses(excludeIds: string[] = []): Promise<Bible
               chineseTranslation: { type: "STRING" },
               sentences: { type: "ARRAY", items: { type: "STRING" } },
               translations: { type: "ARRAY", items: { type: "STRING" } },
-              vocabulary: {
-                type: "ARRAY",
-                items: {
-                  type: "OBJECT",
-                  properties: {
-                    word: { type: "STRING" },
-                    reading: { type: "STRING" },
-                    meaning: { type: "STRING" }
-                  }
-                }
-              },
-              grammar: {
-                type: "ARRAY",
-                items: {
-                  type: "OBJECT",
-                  properties: {
-                    point: { type: "STRING" },
-                    explanation: { type: "STRING" },
-                    example: { type: "STRING" }
-                  }
-                }
-              }
+              vocabulary: { type: "ARRAY", items: { type: "OBJECT", properties: { word: { type: "STRING" }, reading: { type: "STRING" }, meaning: { type: "STRING" } } } },
+              grammar: { type: "ARRAY", items: { type: "OBJECT", properties: { point: { type: "STRING" }, explanation: { type: "STRING" }, example: { type: "STRING" } } } }
             }
           }
         }
       }
     });
     const jsonStr = cleanJsonResponse(result.text || "[]");
-    const verses = JSON.parse(jsonStr).map((v: any, i: number) => ({
-      ...v,
-      id: `bible-${Date.now()}-${i}`
-    }));
-    saveBibleVersesToCache(verses);
-    return verses;
-  } catch (e) {
-    console.error("Failed to fetch Bible verses:", e);
-    return [];
-  }
+    const data = JSON.parse(jsonStr).map((v: any, i: number) => ({ ...v, id: `bible-${Date.now()}-${i}` }));
+    saveBibleVersesToCache(data);
+    return data;
+  } catch (e) { return []; }
 }
 
 export async function generateQuizzes(context: string): Promise<QuizQuestion[]> {
-  const prompt = `Generate 5 Japanese language quiz questions based on this context: ${context}. 
-  Mix types between listening, reading, grammar, and vocabulary. 
-  For 'listening' type, include 'audioText'. Return in JSON format.`;
-
   try {
     const result = await callProxyAPI({
       model: 'gemini-3-flash-preview',
-      contents: prompt,
+      contents: `Generate 5 JLPT questions based on: ${context}. Explanations in Chinese.`,
       config: {
         systemInstruction: MANDATORY_CHINESE_INSTRUCTION,
         responseMimeType: "application/json",
@@ -291,12 +228,6 @@ export async function generateQuizzes(context: string): Promise<QuizQuestion[]> 
       }
     });
     const jsonStr = cleanJsonResponse(result.text || "[]");
-    return JSON.parse(jsonStr).map((q: any, i: number) => ({
-      ...q,
-      id: `quiz-${Date.now()}-${i}`
-    }));
-  } catch (e) {
-    console.error("Failed to generate quizzes:", e);
-    return [];
-  }
+    return JSON.parse(jsonStr).map((q: any, i: number) => ({ ...q, id: `quiz-${Date.now()}-${i}` }));
+  } catch (e) { return []; }
 }
