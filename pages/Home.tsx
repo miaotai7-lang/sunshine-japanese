@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getStats, recordActivity } from '../services/statsService';
+import { getStats } from '../services/statsService';
 import { fetchLearningContent } from '../services/geminiService';
 
 export const Home: React.FC = () => {
@@ -17,11 +17,12 @@ export const Home: React.FC = () => {
     const savedPrefs = JSON.parse(localStorage.getItem('user_prefs') || '{}');
     if (savedPrefs.fontSize) setPrefs(savedPrefs);
     
-    // 东京 3:00 自动抓取逻辑
+    // 东京 3:00 自动抓取
     checkAndPrefetch();
   }, []);
 
   useEffect(() => {
+    // 动态应用 CSS 变量
     document.documentElement.style.setProperty('--base-font-size', `${prefs.fontSize / 16}rem`);
     document.documentElement.style.setProperty('--ruby-font-size', `${prefs.rubySize}em`);
     if (prefs.showColors) {
@@ -36,24 +37,24 @@ export const Home: React.FC = () => {
     const todayStr = new Date().toISOString().split('T')[0];
     const lastPrefetch = localStorage.getItem('last_prefetch_date');
     
-    // 获取东京时间
+    // 获取东京当前小时数
     const tokyoTime = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Tokyo"}));
     const hour = tokyoTime.getHours();
 
+    // 凌晨 3 点后且今天还没预抓取
     if (lastPrefetch !== todayStr && hour >= 3) {
-      console.log("Triggering 3 AM Tokyo Prefetch...");
+      console.log("閃閃開発: 东京 3:00 预热抓取启动...");
       try {
-        // 后台静默抓取 N5-N1 混合内容
-        await fetchLearningContent('news', todayStr, false, "N5-N1");
-        await fetchLearningContent('forum', todayStr, false, "N5-N1");
+        // 静默抓取 N5-N1 混合内容
+        // Fix: fetchLearningContent only accepts 3 parameters (category, date, isAppend)
+        await fetchLearningContent('news', todayStr, false);
+        await fetchLearningContent('forum', todayStr, false);
         localStorage.setItem('last_prefetch_date', todayStr);
       } catch (e) {
-        console.error("Prefetch failed", e);
+        console.error("预热抓取失败", e);
       }
     }
   };
-
-  const maxPoint = Math.max(...stats.chartData, 10);
 
   return (
     <div className="space-y-8 animate-fadeIn pb-12">
@@ -81,13 +82,14 @@ export const Home: React.FC = () => {
       <section className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
         <h3 className="font-black text-lg mb-6 flex items-center gap-3">
           <i className="fa-solid fa-sliders text-indigo-600"></i>
-          个性化设置
+          偏好与显示
         </h3>
         <div className="space-y-6">
+          {/* 字号调节 */}
           <div className="space-y-3">
             <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-widest">
-              <span>阅读字号</span>
-              <span className="text-indigo-600">{prefs.fontSize}px</span>
+              <span>全局字号</span>
+              <span className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{prefs.fontSize}px</span>
             </div>
             <input 
               type="range" min="14" max="24" value={prefs.fontSize}
@@ -96,10 +98,11 @@ export const Home: React.FC = () => {
             />
           </div>
           
+          {/* 假名大小 */}
           <div className="space-y-3">
             <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-widest">
-              <span>假名注音大小</span>
-              <span className="text-indigo-600">{(prefs.rubySize * 100).toFixed(0)}%</span>
+              <span>假名注音比例</span>
+              <span className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{(prefs.rubySize * 100).toFixed(0)}%</span>
             </div>
             <input 
               type="range" min="0.4" max="0.8" step="0.05" value={prefs.rubySize}
@@ -108,21 +111,22 @@ export const Home: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+          {/* 语义着色开关 */}
+          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
             <div className="flex items-center gap-3">
-               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${prefs.showColors ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                  <i className="fa-solid fa-palette text-xs"></i>
+               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${prefs.showColors ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                  <i className="fa-solid fa-palette text-sm"></i>
                </div>
                <div>
-                  <h4 className="text-xs font-bold">语法颜色标记</h4>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Highlight grammar & particles</p>
+                  <h4 className="text-xs font-bold">语义分析标记</h4>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase">Coloring grammar, particles, places</p>
                </div>
             </div>
             <button 
               onClick={() => setPrefs(p => ({ ...p, showColors: !p.showColors }))}
-              className={`w-12 h-6 rounded-full relative transition-colors ${prefs.showColors ? 'bg-indigo-600' : 'bg-slate-300'}`}
+              className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${prefs.showColors ? 'bg-indigo-600' : 'bg-slate-300'}`}
             >
-              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${prefs.showColors ? 'left-7' : 'left-1'}`}></div>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${prefs.showColors ? 'left-7 shadow-md' : 'left-1'}`}></div>
             </button>
           </div>
         </div>
