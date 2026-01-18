@@ -87,7 +87,7 @@ export const Learning: React.FC = () => {
            <div className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center bg-indigo-50 text-indigo-400`}>
               <i className="fa-solid fa-magnifying-glass text-2xl"></i>
            </div>
-           <p className="text-slate-400 text-sm font-bold mb-6">历史日期语料需 AI 重新抓取<br/>{selectedDate} · {selectedLevel}</p>
+           <p className="text-slate-400 text-sm font-bold mb-6">该日期语料需 AI 重新抓取<br/>{selectedDate} · {selectedLevel}</p>
            <button onClick={handleFetch} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs shadow-xl active:scale-95">
              立即启动 AI 溯时抓取
            </button>
