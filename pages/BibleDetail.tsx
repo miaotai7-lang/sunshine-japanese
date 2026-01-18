@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { BibleVerse } from '../types';
-import { playTTS } from '../services/geminiService';
+import { BibleVerse, TextSegment } from '../types';
+import { playTTS, segmentsToText } from '../services/geminiService';
 import { getBibleVerseById } from '../services/cacheService';
 
 export const BibleDetail: React.FC = () => {
@@ -23,10 +23,19 @@ export const BibleDetail: React.FC = () => {
 
   if (!verse) return <div className="p-10 text-center font-black">加载中...</div>;
 
-  const handleTTS = async (text: string, sid: string) => {
+  const handleTTS = async (segments: TextSegment[], sid: string) => {
     setPlayingId(sid);
-    await playTTS(text);
+    await playTTS(segmentsToText(segments));
     setPlayingId(null);
+  };
+
+  const renderSegments = (segments: TextSegment[]) => {
+    return (segments || []).map((seg, idx) => (
+      <ruby key={idx}>
+        {seg.t}
+        {seg.r && <rt>{seg.r}</rt>}
+      </ruby>
+    ));
   };
 
   return (
@@ -45,26 +54,26 @@ export const BibleDetail: React.FC = () => {
 
       <header className="mb-6 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm text-center">
         <span className="text-[10px] font-black px-3 py-1 rounded-xl mb-4 inline-block bg-purple-50 text-purple-700">{verse.reference}</span>
-        <p className="text-xl font-bold leading-relaxed mb-4 Japanese-text">{verse.japaneseText}</p>
+        <p className="text-xl font-bold leading-relaxed mb-4 Japanese-text">{renderSegments(verse.japaneseSegments)}</p>
         {showTranslation && <p className="text-sm text-slate-400 font-medium italic border-t pt-4">"{verse.chineseTranslation}"</p>}
       </header>
 
       <nav className="flex gap-2 p-1.5 bg-slate-200/50 rounded-3xl mb-6">
         {(['content', 'vocab', 'grammar'] as const).map(t => (
           <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-3 text-xs font-black rounded-2xl transition-all ${activeTab === t ? 'bg-white text-purple-700 shadow-md' : 'text-slate-500'}`}>
-            {t === 'content' ? '正文' : t === 'vocab' ? '词汇' : '语法'}
+            {t === 'content' ? '正文解析' : t === 'vocab' ? '词汇' : '语法'}
           </button>
         ))}
       </nav>
 
       <div className="space-y-4">
-        {activeTab === 'content' && verse.sentences.map((s, i) => (
+        {activeTab === 'content' && verse.sentences.map((segments, i) => (
           <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex gap-4 shadow-sm">
             <div className="flex-1">
-              <p className="Japanese-text text-slate-800">{s}</p>
+              <p className="Japanese-text text-slate-800">{renderSegments(segments)}</p>
               {showTranslation && <p className="text-slate-400 text-sm mt-4 border-l-4 pl-4 font-medium">{verse.translations?.[i]}</p>}
             </div>
-            <button onClick={() => handleTTS(s, `s-${i}`)} className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${playingId === `s-${i}` ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'}`}>
+            <button onClick={() => handleTTS(segments, `s-${i}`)} className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${playingId === `s-${i}` ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-600'}`}>
               <i className={`fa-solid ${playingId === `s-${i}` ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
             </button>
           </div>
@@ -79,7 +88,7 @@ export const BibleDetail: React.FC = () => {
               </div>
               {showTranslation && <p className="text-sm text-slate-500">{v.meaning}</p>}
             </div>
-            <button onClick={() => handleTTS(v.word, `v-${i}`)} className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl"><i className="fa-solid fa-volume-high"></i></button>
+            <button onClick={() => playTTS(v.word)} className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl"><i className="fa-solid fa-volume-high"></i></button>
           </div>
         ))}
 
