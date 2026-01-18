@@ -44,7 +44,7 @@ export function playTTS(text: string, rate: number = 0.85): Promise<void> {
 }
 
 /**
- * 学习语料获取：使用 Flash 模型追求极致速度
+ * 学习语料获取
  */
 export async function fetchLearningContent(
   category: LearningCategory, 
@@ -59,7 +59,7 @@ export async function fetchLearningContent(
   };
 
   const result = await callProxyAPI({
-    model: 'gemini-3-flash-preview', // 切换到 Flash 模型，速度提升的关键
+    model: 'gemini-3-flash-preview',
     contents: `Search ${siteFilters[category]} for 2 Japanese entries for JLPT ${level}. Date: ${date}.`,
     config: {
       tools: [{ googleSearch: {} }],
@@ -83,23 +83,31 @@ export async function fetchLearningContent(
 }
 
 /**
- * 赞美诗搜索：Flash 模型生成歌词注音速度极快
+ * 赞美诗搜索：精准锁定“赞美之泉” (讃美の泉)
  */
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
-      model: 'gemini-3-flash-preview', // Flash 模型能极快地处理繁琐的 Ruby 标签生成
-      contents: `Directly provide 2 popular Japanese Christian worship songs. Use Search only if needed. Offset: ${offset}.`,
+      model: 'gemini-3-flash-preview',
+      // 指定搜索“赞美之泉”的日语歌词
+      contents: `Search for 2 Japanese worship songs by "讃美の泉" (Stream of Praise). Focus on their official repertoire. Offset: ${offset}.`,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: `Worship Music Expert. Output exactly 2 JSON objects in an array. 
+        systemInstruction: `Worship Music Expert focusing on "Stream of Praise" (讃美の泉). 
+        Output exactly 2 JSON objects in an array. 
         Structure: {title, artist, lyrics, translation, youtubeUrl}. 
-        CRITICAL: Provide FULL lyrics with <ruby> for all Kanji. Speed is priority.`,
+        CRITICAL: Provide FULL lyrics with <ruby> for all Kanji. Translation must be in Chinese. Speed is priority.`,
         responseMimeType: "application/json"
       }
     });
     const data = JSON.parse(cleanJsonResponse(result.text || "[]"));
-    return data.map((s: any, i: number) => ({ ...s, id: `song-${Date.now()}-${i}`, rank: offset + i + 1 }));
+    // 确保 artist 字段包含赞美之泉
+    return data.map((s: any, i: number) => ({ 
+      ...s, 
+      artist: s.artist || '讃美の泉 (Stream of Praise)',
+      id: `song-${Date.now()}-${i}`, 
+      rank: offset + i + 1 
+    }));
   } catch (e) {
     console.error("Song search failed", e);
     return [];
@@ -107,14 +115,13 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
 }
 
 /**
- * 圣经金句：Flash 模型自带圣经知识库，几乎不需要联网搜索
+ * 圣经金句
  */
 export async function fetchBibleVerses(excludeIds: string[] = []): Promise<BibleVerse[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
     contents: `Give me 2 famous Japanese Bible verses (新共同訳).`,
     config: {
-      // 移除 googleSearch 工具，依靠模型内置知识库能瞬间输出
       systemInstruction: `Bible Scholar. JSON output (2 items). Use <ruby> for Kanji. 
       Structure: {reference, japaneseText, chineseTranslation, sentences:[], translations:[], vocabulary:[], grammar:[]}.`,
       responseMimeType: "application/json"
