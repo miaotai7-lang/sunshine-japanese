@@ -22,13 +22,25 @@
             background-color: #f8fafc;
             padding-bottom: calc(5rem + var(--safe-bottom)); 
         }
-        /* 强制隐藏注音标签，确保排版纯净 */
+        /* 强制隐藏注音标签，确保纯净排版 */
         rt, rp { display: none !important; }
         ruby { display: inline !important; }
         .Japanese-text {
             font-size: var(--base-font-size) !important;
             line-height: 1.8 !important; 
             word-break: break-all;
+            transition: opacity 0.3s ease;
+        }
+        /* 隐藏汉字假名的样式 */
+        .Japanese-text.hidden-content {
+            opacity: 0 !important;
+            height: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        /* 隐藏翻译的样式 */
+        .translation-text.hidden-content {
+            display: none !important;
         }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
