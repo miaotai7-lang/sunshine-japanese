@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getStats, recordActivity } from '../services/statsService';
@@ -7,12 +6,6 @@ import { JLPTLevel } from '../types';
 
 export const Home: React.FC = () => {
   const [stats, setStats] = useState({ streak: 0, totalWords: 0, chartData: [0,0,0,0,0,0,0], todayPoints: 0 });
-  const [prefs, setPrefs] = useState({
-    fontSize: 18,
-    showColors: true,
-    defaultLevel: JLPTLevel.N3
-  });
-
   const [syncStatus, setSyncStatus] = useState<{ loading: boolean; progress: number; message: string }>({
     loading: false,
     progress: 0,
@@ -21,9 +14,18 @@ export const Home: React.FC = () => {
 
   useEffect(() => {
     setStats(getStats());
-    const savedPrefs = JSON.parse(localStorage.getItem('user_prefs') || '{}');
-    if (savedPrefs.fontSize) setPrefs(prev => ({ ...prev, ...savedPrefs }));
   }, []);
+
+  const handleClearCache = () => {
+    if (window.confirm('确定要清除所有已下载的文章、歌曲和圣经语料吗？收藏夹和学习记录将保留。')) {
+      localStorage.removeItem('komorebi_articles_cache');
+      localStorage.removeItem('komorebi_bible_cache');
+      localStorage.removeItem('cached_songs_list');
+      localStorage.removeItem('last_prefetch_date');
+      alert('所有下载内容已清空');
+      window.location.reload();
+    }
+  };
 
   const handleSyncAll = async () => {
     if (syncStatus.loading) return;
@@ -35,10 +37,9 @@ export const Home: React.FC = () => {
       const levels = [JLPTLevel.N5, JLPTLevel.N4, JLPTLevel.N3, JLPTLevel.N2, JLPTLevel.N1];
       const categories = ['news', 'forum', 'trending'] as const;
       
-      const totalTasks = (levels.length * categories.length) + 2; // 文章 + 圣经 + 歌曲
+      const totalTasks = (levels.length * categories.length) + 2; 
       let completed = 0;
 
-      // 1. 抓取所有等级的文章
       for (const lv of levels) {
         for (const cat of categories) {
           setSyncStatus(prev => ({ ...prev, message: `正在抓取 ${lv} ${cat}...`, progress: (completed / totalTasks) * 100 }));
@@ -47,20 +48,18 @@ export const Home: React.FC = () => {
         }
       }
 
-      // 2. 抓取圣经
       setSyncStatus(prev => ({ ...prev, message: '正在更新圣经金句...', progress: (completed / totalTasks) * 100 }));
       await fetchBibleVerses();
       completed++;
 
-      // 3. 抓取歌曲
       setSyncStatus(prev => ({ ...prev, message: '正在同步赞美之泉歌曲...', progress: (completed / totalTasks) * 100 }));
       await fetchTopSongs(0);
       completed++;
 
       localStorage.setItem('last_prefetch_date', todayStr);
-      recordActivity(50); // 全量同步给予高额积分奖励
+      recordActivity(50); 
       
-      setSyncStatus({ loading: false, progress: 100, message: '今日全量内容（N1-N5 + 歌曲）就绪！' });
+      setSyncStatus({ loading: false, progress: 100, message: '今日全量内容就绪！' });
       setTimeout(() => setSyncStatus(prev => ({ ...prev, message: '' })), 3000);
       setStats(getStats());
     } catch (e) {
@@ -85,31 +84,44 @@ export const Home: React.FC = () => {
             ) : isTodaySynced ? (
               <div className="bg-emerald-500/80 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/10 shadow-lg shadow-emerald-900/20">
                 <i className="fa-solid fa-check-double text-[10px]"></i>
-                <span className="text-[10px] font-black uppercase tracking-tighter">全量就绪</span>
+                <span className="text-[10px] font-black uppercase tracking-tighter">今日已同步</span>
               </div>
-            ) : (
-              <button 
-                onClick={handleSyncAll}
-                className="bg-white text-indigo-600 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-              >
-                <i className="fa-solid fa-bolt-lightning mr-2"></i> 一键备好全等级
-              </button>
-            )}
+            ) : null}
           </div>
           
-          <p className="text-indigo-100 text-sm mb-8 opacity-80">
+          <p className="text-indigo-100 text-sm mb-8 opacity-80 min-h-[2.5rem]">
             {syncStatus.message || (stats.streak > 0 ? `已连续学习 ${stats.streak} 天，所有语料已净化。` : '开启纯净版日语之旅。')}
           </p>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-5 border border-white/10">
-              <span className="text-3xl font-black block tracking-tighter">{stats.streak}</span>
-              <span className="text-[10px] text-indigo-100 uppercase font-bold tracking-widest text-center">学习天数</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-5 border border-white/10">
-              <span className="text-3xl font-black block tracking-tighter">{stats.totalWords}</span>
-              <span className="text-[10px] text-indigo-100 uppercase font-bold tracking-widest text-center">收藏库</span>
-            </div>
+          <div className="flex flex-col gap-3">
+             <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-5 border border-white/10">
+                  <span className="text-3xl font-black block tracking-tighter">{stats.streak}</span>
+                  <span className="text-[10px] text-indigo-100 uppercase font-bold tracking-widest text-center">学习天数</span>
+                </div>
+                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-5 border border-white/10">
+                  <span className="text-3xl font-black block tracking-tighter">{stats.totalWords}</span>
+                  <span className="text-[10px] text-indigo-100 uppercase font-bold tracking-widest text-center">收藏库</span>
+                </div>
+              </div>
+
+              {!syncStatus.loading && (
+                <div className="flex flex-col gap-2 mt-2">
+                   <button 
+                    onClick={handleSyncAll}
+                    className="w-full bg-white text-indigo-600 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                  >
+                    <i className="fa-solid fa-bolt-lightning mr-2"></i> 一键同步今日全量内容
+                  </button>
+                  <button 
+                    onClick={handleClearCache}
+                    className="w-full bg-indigo-500/30 text-white border border-white/10 py-2.5 rounded-2xl text-[10px] font-black hover:bg-rose-500/40 transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+                  >
+                    <i className="fa-solid fa-trash-can"></i>
+                    清除所有已下载数据
+                  </button>
+                </div>
+              )}
           </div>
         </div>
         <i className="fa-solid fa-sun absolute -right-6 -bottom-6 text-[10rem] text-white/5 rotate-12"></i>
