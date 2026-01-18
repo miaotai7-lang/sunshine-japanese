@@ -45,8 +45,8 @@ export const Songs: React.FC = () => {
     <div className={`space-y-6 pb-24 animate-fadeIn ${showFurigana ? '' : 'hide-furigana'}`}>
       <header className="flex justify-between items-start px-1">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">日语赞美诗</h2>
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Global Worship Song Search</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">赞美之泉专栏</h2>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Stream of Praise Japanese Selection</p>
         </div>
         <button onClick={() => setShowFurigana(!showFurigana)} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${showFurigana ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-500'}`}>
           <i className="fa-solid fa-eye text-xs"></i>
@@ -58,12 +58,12 @@ export const Songs: React.FC = () => {
            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center bg-indigo-50 text-indigo-400">
               <i className="fa-solid fa-music text-2xl"></i>
            </div>
-           <p className="text-slate-400 text-sm font-bold mb-6">点击下方按钮，AI 将在全网范围内<br/>搜索经典日文赞美诗</p>
+           <p className="text-slate-400 text-sm font-bold mb-6">点击下方按钮，AI 将精准检索<br/>“赞美之泉”出品的经典日语歌曲</p>
            <button 
              onClick={() => loadSongs(false)}
              className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs shadow-xl active:scale-95"
            >
-             开启全网 AI 检索 (2首)
+             检索赞美之泉 (2首)
            </button>
         </div>
       )}
@@ -71,7 +71,7 @@ export const Songs: React.FC = () => {
       {(loading || loadingMore) && (
         <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 flex flex-col items-center gap-4 text-center">
            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-           <p className="text-indigo-600 font-black text-[10px] uppercase tracking-widest">Searching for spiritual melodies...</p>
+           <p className="text-indigo-600 font-black text-[10px] uppercase tracking-widest">Finding spiritual melodies from SOP...</p>
         </div>
       )}
 
@@ -111,7 +111,7 @@ export const Songs: React.FC = () => {
 
       {songs.length > 0 && !loadingMore && (
         <button onClick={() => loadSongs(true)} className="w-full bg-white border-2 border-indigo-100 text-indigo-600 font-black py-5 rounded-[2rem] shadow-sm active:scale-95">
-          继续搜索 2 首歌曲
+          继续检索赞美之泉歌曲
         </button>
       )}
     </div>
