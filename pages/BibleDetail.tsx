@@ -30,15 +30,15 @@ export const BibleDetail: React.FC = () => {
   };
 
   return (
-    <div className="pb-24 animate-fadeIn px-2">
+    <div className={`pb-24 animate-fadeIn px-2 ${!showReadings ? 'hide-readings' : ''}`}>
       <div className="flex justify-between items-center py-4 sticky top-0 bg-slate-50/90 backdrop-blur-md z-30">
         <button onClick={() => navigate(-1)} className="text-slate-400 font-black"><i className="fa-solid fa-chevron-left"></i></button>
         <div className="flex gap-2">
           <button onClick={() => setShowReadings(!showReadings)} className={`px-3 py-1.5 rounded-full text-[10px] font-black transition-all ${showReadings ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
-            {showReadings ? '读音显' : '读音隐'}
+            {showReadings ? '隐藏假名' : '显示假名'}
           </button>
           <button onClick={() => setShowTranslation(!showTranslation)} className={`px-3 py-1.5 rounded-full text-[10px] font-black transition-all ${showTranslation ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
-            {showTranslation ? '翻译显' : '翻译隐'}
+            {showTranslation ? '隐藏翻译' : '显示翻译'}
           </button>
         </div>
       </div>
@@ -52,14 +52,14 @@ export const BibleDetail: React.FC = () => {
       <nav className="flex gap-2 p-1.5 bg-slate-200/50 rounded-3xl mb-6">
         {(['content', 'vocab', 'grammar'] as const).map(t => (
           <button key={t} onClick={() => setActiveTab(t)} className={`flex-1 py-3 text-xs font-black rounded-2xl transition-all ${activeTab === t ? 'bg-white text-purple-700 shadow-md' : 'text-slate-500'}`}>
-            {t === 'content' ? '解析' : t === 'vocab' ? '词汇' : '语法'}
+            {t === 'content' ? '正文' : t === 'vocab' ? '词汇' : '语法'}
           </button>
         ))}
       </nav>
 
       <div className="space-y-4">
         {activeTab === 'content' && verse.sentences.map((s, i) => (
-          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex gap-4">
+          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex gap-4 shadow-sm">
             <div className="flex-1">
               <p className="Japanese-text text-slate-800">{s}</p>
               {showTranslation && <p className="text-slate-400 text-sm mt-4 border-l-4 pl-4 font-medium">{verse.translations?.[i]}</p>}
@@ -71,11 +71,11 @@ export const BibleDetail: React.FC = () => {
         ))}
 
         {activeTab === 'vocab' && (verse.vocabulary || []).map((v, i) => (
-          <div key={i} className="bg-white p-5 rounded-3xl border border-slate-100 flex items-center justify-between">
+          <div key={i} className="bg-white p-5 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-lg font-black">{v.word}</span>
-                <span className={`text-[10px] font-black text-purple-500 transition-opacity ${showReadings ? 'opacity-100' : 'opacity-0'}`}>[{v.reading}]</span>
+                <span className="text-[10px] font-black text-purple-500 furigana">[{v.reading}]</span>
               </div>
               {showTranslation && <p className="text-sm text-slate-500">{v.meaning}</p>}
             </div>
@@ -84,7 +84,7 @@ export const BibleDetail: React.FC = () => {
         ))}
 
         {activeTab === 'grammar' && (verse.grammar || []).map((g, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100">
+          <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
              <div className="flex justify-between mb-2">
                 <span className="font-black text-purple-700">{g.point}</span>
              </div>
