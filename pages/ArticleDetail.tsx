@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Article } from '../types';
+import { Article, getLevelColor } from '../types';
 import { playTTS } from '../services/geminiService';
 import { getArticleById } from '../services/cacheService';
-import { getLevelColor } from './Learning';
 import { recordActivity } from '../services/statsService';
 
 export const ArticleDetail: React.FC = () => {
@@ -39,7 +38,6 @@ export const ArticleDetail: React.FC = () => {
   };
 
   const toggleStar = (item: any, type: string) => {
-    // 优先使用 item.id，如果没有则生成唯一标识
     const itemId = String(item.id || (item.word ? `w-${item.word}` : `g-${item.point}`) || `custom-${Date.now()}`);
     const collections = JSON.parse(localStorage.getItem('user_collection') || '[]');
     let updated;
