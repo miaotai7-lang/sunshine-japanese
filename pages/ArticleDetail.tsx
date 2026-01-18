@@ -14,7 +14,7 @@ export const ArticleDetail: React.FC = () => {
   const [showReadings, setShowReadings] = useState(true);
   const [showTranslation, setShowTranslation] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [, setUpdateTick] = useState(0); // 用于强制刷新收藏状态
+  const [, setUpdateTick] = useState(0);
 
   useEffect(() => {
     if (!article && id) {
@@ -26,6 +26,7 @@ export const ArticleDetail: React.FC = () => {
   if (!article) return <div className="p-10 text-center font-black">加载中...</div>;
 
   const handleTTS = async (segments: TextSegment[], sid: string) => {
+    if (!segments) return;
     setPlayingId(sid);
     await playTTS(segmentsToText(segments));
     setPlayingId(null);
@@ -36,8 +37,12 @@ export const ArticleDetail: React.FC = () => {
     setUpdateTick(prev => prev + 1);
   };
 
-  const renderSegments = (segments: TextSegment[]) => {
-    return (segments || []).map((seg, idx) => (
+  const renderSegments = (segments: any) => {
+    // 防御性处理：如果 segments 还是旧版的字符串格式，直接返回字符串
+    if (typeof segments === 'string') return segments;
+    if (!Array.isArray(segments)) return '';
+    
+    return segments.map((seg, idx) => (
       <ruby key={idx}>
         {seg.t}
         {seg.r && <rt>{seg.r}</rt>}
@@ -48,7 +53,7 @@ export const ArticleDetail: React.FC = () => {
   return (
     <div className={`pb-24 animate-fadeIn px-2 ${!showReadings ? 'hide-readings' : ''}`}>
       <div className="flex justify-between items-center py-4 sticky top-0 bg-slate-50/90 backdrop-blur-md z-30">
-        <button onClick={() => navigate(-1)} className="text-slate-400 font-black"><i className="fa-solid fa-chevron-left"></i></button>
+        <button onClick={() => navigate(-1)} className="text-slate-400 font-black px-2 py-1"><i className="fa-solid fa-chevron-left"></i></button>
         <div className="flex gap-2">
           <button onClick={() => setShowReadings(!showReadings)} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${showReadings ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
             {showReadings ? '隐藏假名' : '显示假名'}
@@ -59,11 +64,11 @@ export const ArticleDetail: React.FC = () => {
         </div>
       </div>
 
-      <header className="mb-6">
-        <h2 className="text-2xl font-black text-slate-800 mb-2">
+      <header className="mb-6 px-1">
+        <h2 className="text-2xl font-black text-slate-800 mb-4 leading-relaxed Japanese-text">
           {article.titleSegments ? renderSegments(article.titleSegments) : article.title}
         </h2>
-        <div className="bg-white p-5 rounded-3xl border border-slate-100 text-sm text-slate-500 italic">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 text-sm text-slate-500 italic shadow-sm">
           {article.summary}
         </div>
       </header>
@@ -76,33 +81,33 @@ export const ArticleDetail: React.FC = () => {
         ))}
       </nav>
 
-      <div className="space-y-4">
-        {activeTab === 'content' && article.sentences.map((segments, i) => (
+      <div className="space-y-4 px-1">
+        {activeTab === 'content' && Array.isArray(article.sentences) && article.sentences.map((segments, i) => (
           <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4">
             <div className="flex-1">
-              <p className="Japanese-text text-slate-800">{renderSegments(segments)}</p>
-              {showTranslation && <p className="text-slate-400 text-sm mt-4 border-t pt-4 font-medium">{article.translations[i]}</p>}
+              <div className="Japanese-text text-slate-800">{renderSegments(segments)}</div>
+              {showTranslation && <p className="text-slate-400 text-sm mt-4 border-t pt-4 font-medium leading-relaxed">{article.translations?.[i]}</p>}
             </div>
-            <div className="flex justify-end gap-3 mt-2">
+            <div className="flex justify-end gap-3 mt-1">
               <button 
-                onClick={() => handleToggleCollect('sentence', { segments, translation: article.translations[i] })} 
-                className={`collect-btn w-10 h-10 rounded-xl flex items-center justify-center ${isCollected({ segments, translation: article.translations[i] }) ? 'bg-rose-50 text-rose-500 active' : 'bg-slate-50 text-slate-300'}`}
+                onClick={() => handleToggleCollect('sentence', { segments, translation: article.translations?.[i] })} 
+                className={`collect-btn w-10 h-10 rounded-xl flex items-center justify-center ${isCollected({ segments, translation: article.translations?.[i] }) ? 'bg-rose-50 text-rose-500 active' : 'bg-slate-50 text-slate-300'}`}
               >
-                <i className={`fa-${isCollected({ segments, translation: article.translations[i] }) ? 'solid' : 'regular'} fa-heart`}></i>
+                <i className={`fa-${isCollected({ segments, translation: article.translations?.[i] }) ? 'solid' : 'regular'} fa-heart`}></i>
               </button>
-              <button onClick={() => handleTTS(segments, `s-${i}`)} className={`w-10 h-10 rounded-xl flex items-center justify-center ${playingId === `s-${i}` ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-400'}`}>
+              <button onClick={() => handleTTS(segments, `s-${i}`)} className={`w-10 h-10 rounded-xl flex items-center justify-center ${playingId === `s-${i}` ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-50 text-indigo-400'}`}>
                 <i className={`fa-solid ${playingId === `s-${i}` ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
               </button>
             </div>
           </div>
         ))}
 
-        {activeTab === 'vocab' && article.vocabulary.map((v, i) => (
+        {activeTab === 'vocab' && article.vocabulary?.map((v, i) => (
           <div key={i} className="bg-white p-5 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xl font-black text-slate-800">{v.word}</span>
-                <span className="text-[10px] font-black text-indigo-500 uppercase furigana">[{v.reading}]</span>
+                <span className="text-[10px] font-black text-indigo-500 uppercase">[{v.reading}]</span>
               </div>
               {showTranslation && <p className="text-sm text-slate-500 font-medium">{v.meaning}</p>}
             </div>
@@ -118,7 +123,7 @@ export const ArticleDetail: React.FC = () => {
           </div>
         ))}
 
-        {activeTab === 'grammar' && article.grammar.map((g, i) => (
+        {activeTab === 'grammar' && article.grammar?.map((g, i) => (
           <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
              <div className="flex justify-between mb-2">
                 <span className="font-black text-indigo-600">{g.point}</span>
@@ -129,7 +134,7 @@ export const ArticleDetail: React.FC = () => {
                   <i className={`fa-${isCollected(g) ? 'solid' : 'regular'} fa-heart text-[10px]`}></i>
                 </button>
              </div>
-             <p className="text-sm text-slate-600 mb-4">{g.explanation}</p>
+             <p className="text-sm text-slate-600 mb-4 leading-relaxed">{g.explanation}</p>
              <div className="bg-slate-50 p-4 rounded-2xl italic text-xs text-slate-500">例: {g.example}</div>
           </div>
         ))}
