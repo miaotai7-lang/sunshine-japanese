@@ -40,7 +40,6 @@ export function playTTS(text: string, rate: number = 0.85): Promise<void> {
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
     window.speechSynthesis.speak(utterance);
-    // Fallback for some mobile browsers where onend never fires
     setTimeout(() => resolve(), 5000);
   });
 }
@@ -61,20 +60,7 @@ export async function fetchLearningContent(
     contents: `Search ${siteFilters[category]} for 1 entry (JLPT ${level}) for date ${date}. Output structured segments for Furigana.`,
     config: {
       tools: [{ googleSearch: {} }],
-      systemInstruction: `Professional Japanese Teacher.
-      CRITICAL RULES:
-      1. MUST breakdown ALL Japanese text into: { "t": "Text", "r": "Reading" }.
-      2. If a segment is only Kana, "r" is optional or same as "t".
-      3. Return ONLY a JSON array of objects.
-      JSON structure: [{
-        "title": "Plain Text",
-        "titleSegments": [{"t":"日","r":"に"},{"t":"本","r":"ほん"}],
-        "summary": "Chinese Summary",
-        "sentences": [ [{"t":"今","r":"いま"},{"t":"日","r":"にち"}] ],
-        "translations": ["Chinese sentence"],
-        "vocabulary": [{"word":"今日","reading":"きょう","meaning":"今天"}],
-        "grammar": [{"point":"～は","explanation":"Topic","example":"これは本です"}]
-      }]`,
+      systemInstruction: `Professional Japanese Teacher. Output JSON array. Breakdown ALL Japanese text into: { "t": "Text", "r": "Reading" }. Simplified Chinese for translations.`,
       responseMimeType: "application/json"
     }
   });
@@ -95,10 +81,27 @@ export async function fetchLearningContent(
 export async function fetchBibleVerses(): Promise<BibleVerse[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Give 2 Japanese Bible verses with segment analysis for Furigana.`,
+    contents: `Provide 2 famous Japanese Bible verses. Perform deep analysis including vocabulary and grammar points.`,
     config: {
-      systemInstruction: `Bible Scholar. Return JSON array. 
-      Structure: [{"reference":"...","japaneseSegments":[{"t":"神","r":"かみ"}], "chineseTranslation":"...", "sentences": [[...]], "translations": ["..."], "vocabulary": [...], "grammar": [...]}]`,
+      systemInstruction: `Bible & Japanese Scholar.
+      Return a JSON array of objects with this EXACT structure:
+      [{
+        "reference": "e.g. ヨハネ 3:16",
+        "japaneseText": "Plain Japanese string",
+        "japaneseSegments": [{"t":"神","r":"かみ"},{"t":"は"}],
+        "chineseTranslation": "中文翻译",
+        "sentences": [
+          [{"t":"神","r":"かみ"},{"t":"は"}] 
+        ],
+        "translations": ["对应的中文逐句翻译"],
+        "vocabulary": [
+          {"word":"神","reading":"かみ","meaning":"上帝/神"}
+        ],
+        "grammar": [
+          {"point":"～は","explanation":"提示主题","example":"私は学生です"}
+        ]
+      }]
+      MANDATORY: Breakdown ALL Japanese text into TextSegments {t, r}.`,
       responseMimeType: "application/json"
     }
   });
@@ -117,10 +120,7 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
     contents: `Find 2 official Japanese songs by "Stream of Praise Music Ministries" (赞美之泉). Search YouTube official channel.`,
     config: {
       tools: [{ googleSearch: {} }],
-      systemInstruction: `Music Expert. 
-      - YouTube URL MUST BE official (e.g., https://www.youtube.com/watch?v=...).
-      - Breakdown ALL lyrics into Segments: {"t":"...","r":"..."}.
-      - Return JSON array.`,
+      systemInstruction: `Music Expert. Find official YouTube links. Breakdown ALL lyrics into Segments: {"t":"...","r":"..."}.`,
       responseMimeType: "application/json"
     }
   });
@@ -131,9 +131,9 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
 export async function generateQuizzes(context: string): Promise<QuizQuestion[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Generate 5 Japanese quizzes based on: ${context}. Keep it simple JSON.`,
+    contents: `Generate 5 Japanese quizzes based on: ${context}.`,
     config: { 
-        systemInstruction: "Generate JSON quizzes. Options and questions should be plain Japanese. No ruby tags.",
+        systemInstruction: "Generate JSON quizzes. No ruby tags.",
         responseMimeType: "application/json" 
     }
   });
