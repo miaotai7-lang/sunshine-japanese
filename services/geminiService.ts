@@ -1,6 +1,7 @@
 
 import { JLPTLevel, Article, Song, LearningCategory, QuizQuestion, BibleVerse } from "../types";
 import { saveArticlesToCache, saveBibleVersesToCache } from "./cacheService";
+import { GoogleGenAI } from "@google/genai";
 
 async function callProxyAPI(payload: any) {
   const response = await fetch('/api/generate', {
@@ -25,7 +26,7 @@ function cleanJsonResponse(text: string): string {
 // 核心语音播放逻辑优化
 export function playTTS(text: string, rate: number = 0.85): Promise<void> {
   return new Promise((resolve) => {
-    // 预处理：移除HTML标签，特别是ruby标签
+    // 关键优化：移除 ruby 注音内容，只读正文汉字/假名
     const cleanText = text.replace(/<rt>.*?<\/rt>/g, '').replace(/<[^>]*>?/gm, '').trim();
     if (!cleanText) return resolve();
 
@@ -34,7 +35,6 @@ export function playTTS(text: string, rate: number = 0.85): Promise<void> {
     
     // 强制筛选日语语音包，避免中文引擎误读
     const voices = window.speechSynthesis.getVoices();
-    // 优先级排序：Google原生 > 系统原生日语 > 包含 ja 的任何语音
     const jaVoice = voices.find(v => v.lang === 'ja-JP' && v.name.includes('Google')) || 
                     voices.find(v => v.lang === 'ja-JP') || 
                     voices.find(v => v.lang.startsWith('ja'));
@@ -44,7 +44,7 @@ export function playTTS(text: string, rate: number = 0.85): Promise<void> {
     }
     
     utterance.lang = 'ja-JP';
-    utterance.rate = rate; // 稍微慢一点，听得更清楚
+    utterance.rate = rate; 
     utterance.pitch = 1.0;
     
     utterance.onend = () => resolve();
@@ -52,19 +52,17 @@ export function playTTS(text: string, rate: number = 0.85): Promise<void> {
     
     window.speechSynthesis.speak(utterance);
     
-    // 兜底机制：如果5秒还没结束，强制结束
-    setTimeout(() => resolve(), 5000);
+    // 兜底超时
+    setTimeout(() => resolve(), 8000);
   });
 }
 
-const OPTIMIZED_INSTRUCTION = `Expert Japanese Educator. 
-Rules: Output 5 JSON objects with <ruby> for all Kanji. Semantic tags: <span class="g-syntax">, <span class="g-particle">.`;
+const OPTIMIZED_INSTRUCTION = `Expert Japanese Educator. Rules: Output JSON with <ruby> for all Kanji. Semantic tags: <span class="g-syntax">, <span class="g-particle">.`;
 
-// Fix: Added isAppend parameter to resolve 'Expected 2 arguments, but got 3' errors in callers
 export async function fetchLearningContent(category: LearningCategory, date: string, isAppend: boolean = false): Promise<Article[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Generate 5 Japanese ${category} articles for ${date}. Balanced levels.`,
+    contents: `Generate 5 Japanese ${category} articles for ${date}.`,
     config: {
       systemInstruction: OPTIMIZED_INSTRUCTION,
       responseMimeType: "application/json",
@@ -72,11 +70,9 @@ export async function fetchLearningContent(category: LearningCategory, date: str
     }
   });
   const data = JSON.parse(cleanJsonResponse(result.text || "[]"));
-  // Fix: Generate unique IDs when appending to allow multiple batches for the same day/category
-  const timestamp = Date.now();
   const articles = data.map((a: any, i: number) => ({ 
     ...a, 
-    id: isAppend ? `${category}-${date}-${i}-${timestamp}` : `${category}-${date}-${i}`, 
+    id: isAppend ? `${category}-${date}-${i}-${Date.now()}` : `${category}-${date}-${i}`, 
     category, 
     date 
   }));
@@ -85,18 +81,20 @@ export async function fetchLearningContent(category: LearningCategory, date: str
 }
 
 /**
- * 歌曲抓取优化：指定来源并增加数量
+ * 歌曲抓取优化：指定特定网站来源，抓取 10 首，使用搜索增强
  */
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
-      model: 'gemini-3-pro-preview', // 使用增强版以获得更好的搜索效果
-      contents: `Fetch exactly 10 real Japanese worship songs from https://sanbikashi.net/hallelujah/. Provide lyrics with <ruby> and translations. Batch starting from offset ${offset}.`,
+      model: 'gemini-3-pro-preview', // 搜索功能必须用 Pro
+      contents: `Search and fetch exactly 10 real Japanese worship songs from the website: https://sanbikashi.net/hallelujah/. 
+      Provide the real Japanese lyrics using <ruby> for Kanji, and a full Chinese translation. 
+      Batch starting from offset ${offset}.`,
       config: {
         tools: [{ googleSearch: {} }],
         systemInstruction: `Japanese Worship Music Expert. Output JSON ARRAY of 10 objects. 
         Structure: {title, artist, lyrics, translation, youtubeUrl}. 
-        IMPORTANT: Search the specific website for actual lyrics content.`,
+        Ensure you get content specifically from sanbikashi.net.`,
         responseMimeType: "application/json"
       }
     });
@@ -113,10 +111,7 @@ export async function fetchBibleVerses(excludeIds: string[] = []): Promise<Bible
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
     contents: `5 inspiring Japanese Bible verses.`,
-    config: {
-      systemInstruction: `Expert Japanese Bible Scholar. JSON output. Use <ruby>.`,
-      responseMimeType: "application/json"
-    }
+    config: { systemInstruction: `Expert Japanese Bible Scholar. JSON output with <ruby>.`, responseMimeType: "application/json" }
   });
   const data = JSON.parse(cleanJsonResponse(result.text || "[]"));
   const verses = data.map((v: any, i: number) => ({ ...v, id: `v-${Date.now()}-${i}` }));
@@ -128,10 +123,7 @@ export async function generateQuizzes(context: string): Promise<QuizQuestion[]> 
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
     contents: `5 quizzes based on: ${context}`,
-    config: {
-      systemInstruction: `Expert Japanese Teacher. JSON output. Use <ruby>.`,
-      responseMimeType: "application/json"
-    }
+    config: { systemInstruction: `Expert Japanese Teacher. JSON output with <ruby>.`, responseMimeType: "application/json" }
   });
   return JSON.parse(cleanJsonResponse(result.text || "[]"));
 }
