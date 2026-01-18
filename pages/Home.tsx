@@ -19,16 +19,16 @@ export const Home: React.FC = () => {
 
   const handleClearToday = () => {
     const today = new Date().toISOString().split('T')[0];
-    if (window.confirm(`确定清除今日 (${today}) 的下载语料吗？收藏夹和练习统计将安全保留。`)) {
+    if (window.confirm(`确定要清除今日 (${today}) 的下载语料吗？收藏夹和学习记录将安全保留。`)) {
       clearCacheByDate(today);
       localStorage.removeItem('last_prefetch_date');
-      alert('今日离线缓存已清理');
+      alert('今日缓存已清空');
       window.location.reload();
     }
   };
 
   const handleClearAll = () => {
-    if (window.confirm('确定清除所有已下载的文章、歌曲和圣经吗？收藏夹和学习记录不会被删除。')) {
+    if (window.confirm('确定要清除所有已下载的文章、歌曲和圣经吗？收藏夹和学习记录将不会被删除。')) {
       clearAllLearningCache();
       alert('所有下载内容已清空');
       window.location.reload();
@@ -48,12 +48,12 @@ export const Home: React.FC = () => {
       const totalTasks = (levels.length * categories.length) + 2; 
       let completed = 0;
 
-      // 抓取所有等级
+      // 循环抓取所有等级和分类
       for (const lv of levels) {
         for (const cat of categories) {
           setSyncStatus(prev => ({ 
             ...prev, 
-            message: `同步中: ${lv} ${cat === 'news' ? '快讯' : cat === 'forum' ? '日记' : '流行语'}...`, 
+            message: `同步中: ${lv} ${cat === 'news' ? '快讯' : cat === 'forum' ? '日记' : '俚语'}...`, 
             progress: (completed / totalTasks) * 100 
           }));
           await fetchLearningContent(cat, lv, todayStr);
@@ -61,23 +61,23 @@ export const Home: React.FC = () => {
         }
       }
 
-      setSyncStatus(prev => ({ ...prev, message: '同步圣经金句...', progress: (completed / totalTasks) * 100 }));
+      setSyncStatus(prev => ({ ...prev, message: '正在同步圣经金句...', progress: (completed / totalTasks) * 100 }));
       await fetchBibleVerses();
       completed++;
 
-      setSyncStatus(prev => ({ ...prev, message: '同步赞美之泉日语歌曲...', progress: (completed / totalTasks) * 100 }));
+      setSyncStatus(prev => ({ ...prev, message: '正在同步赞美之泉日语歌曲...', progress: (completed / totalTasks) * 100 }));
       await fetchTopSongs(0);
       completed++;
 
       localStorage.setItem('last_prefetch_date', todayStr);
       recordActivity(50); 
       
-      setSyncStatus({ loading: false, progress: 100, message: '全量内容同步完成！' });
+      setSyncStatus({ loading: false, progress: 100, message: '今日全量内容同步完成！' });
       setTimeout(() => setSyncStatus(prev => ({ ...prev, message: '' })), 3000);
       setStats(getStats());
     } catch (e) {
       console.error("Sync failed", e);
-      setSyncStatus({ loading: false, progress: 0, message: '同步失败，请重试' });
+      setSyncStatus({ loading: false, progress: 0, message: '同步中断，请检查网络后重试' });
     }
   };
 
@@ -90,54 +90,54 @@ export const Home: React.FC = () => {
           <div className="flex justify-between items-start mb-2">
             <h2 className="text-2xl font-black tracking-tight">你好，闪闪！</h2>
             {syncStatus.loading ? (
-              <div className="bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2">
+              <div className="bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/10">
                 <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-[10px] font-black">{Math.round(syncStatus.progress)}%</span>
+                <span className="text-[10px] font-black uppercase">{Math.round(syncStatus.progress)}%</span>
               </div>
             ) : isTodaySynced ? (
-              <div className="bg-emerald-500/80 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2">
+              <div className="bg-emerald-500/80 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/10 shadow-lg">
                 <i className="fa-solid fa-check-double text-[10px]"></i>
-                <span className="text-[10px] font-black uppercase tracking-widest">今日已同步</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">全等级已同步</span>
               </div>
             ) : null}
           </div>
           
-          <p className="text-indigo-100 text-xs mb-8 opacity-80 min-h-[1.5rem] font-medium">
-            {syncStatus.message || (stats.streak > 0 ? `已连续学习 ${stats.streak} 天，加油！` : '开启每日纯净日语之旅。')}
+          <p className="text-indigo-100 text-[10px] mb-8 opacity-80 min-h-[1.5rem] font-bold uppercase tracking-widest">
+            {syncStatus.message || (stats.streak > 0 ? `已连续学习 ${stats.streak} 天，全语料已净化。` : '开启纯净版日语之旅。')}
           </p>
 
           <div className="flex flex-col gap-3">
-             <div className="grid grid-cols-2 gap-4 mb-2">
+             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white/10 backdrop-blur-md rounded-3xl p-5 border border-white/10">
                   <span className="text-3xl font-black block tracking-tighter">{stats.streak}</span>
                   <span className="text-[10px] text-indigo-100 uppercase font-bold tracking-widest">学习天数</span>
                 </div>
                 <div className="bg-white/10 backdrop-blur-md rounded-3xl p-5 border border-white/10">
                   <span className="text-3xl font-black block tracking-tighter">{stats.totalWords}</span>
-                  <span className="text-[10px] text-indigo-100 uppercase font-bold tracking-widest">收藏词汇</span>
+                  <span className="text-[10px] text-indigo-100 uppercase font-bold tracking-widest">收藏中心</span>
                 </div>
               </div>
 
               {!syncStatus.loading && (
-                <div className="space-y-2">
+                <div className="space-y-2 mt-2">
                    <button 
                     onClick={handleSyncAll}
                     className="w-full bg-white text-indigo-600 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
                   >
-                    <i className="fa-solid fa-bolt-lightning"></i> 一键同步全等级全内容
+                    <i className="fa-solid fa-bolt-lightning"></i> 一键同步全等级语料
                   </button>
                   <div className="grid grid-cols-2 gap-2">
                     <button 
                       onClick={handleClearToday}
                       className="bg-indigo-500/30 text-white border border-white/10 py-2.5 rounded-2xl text-[10px] font-black hover:bg-orange-500/40 transition-all flex items-center justify-center gap-2"
                     >
-                      <i className="fa-solid fa-calendar-minus"></i> 清除今日
+                      <i className="fa-solid fa-calendar-minus"></i> 清除今日数据
                     </button>
                     <button 
                       onClick={handleClearAll}
                       className="bg-indigo-500/30 text-white border border-white/10 py-2.5 rounded-2xl text-[10px] font-black hover:bg-rose-500/40 transition-all flex items-center justify-center gap-2"
                     >
-                      <i className="fa-solid fa-trash-can"></i> 清除全部
+                      <i className="fa-solid fa-trash-can"></i> 清除全部数据
                     </button>
                   </div>
                 </div>
@@ -149,16 +149,16 @@ export const Home: React.FC = () => {
 
       <section>
         <div className="flex items-center justify-between mb-4 px-2">
-          <h3 className="font-black text-lg">全语料中心</h3>
-          <span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-black uppercase">
-             {new Date().toLocaleDateString('zh-CN')}
+          <h3 className="font-black text-lg">全语料学习</h3>
+          <span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-black tracking-widest uppercase">
+             {new Date().toLocaleDateString('ja-JP')}
           </span>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <MenuCard to="/learning" title="每日语料" desc="N1-N5 覆盖" icon="fa-newspaper" color="bg-emerald-50 text-emerald-600" />
-          <MenuCard to="/bible" title="圣经名句" desc="纯净版排版" icon="fa-dove" color="bg-purple-50 text-purple-600" />
-          <MenuCard to="/songs" title="赞美之泉" desc="日语敬拜曲" icon="fa-music" color="bg-rose-50 text-rose-600" />
-          <MenuCard to="/collection" title="复习中心" desc="收藏与复习" icon="fa-star" color="bg-amber-50 text-amber-600" />
+          <MenuCard to="/learning" title="每日新闻" desc="N1-N5 覆盖" icon="fa-newspaper" color="bg-emerald-50 text-emerald-600" />
+          <MenuCard to="/bible" title="圣经名句" desc="净化排版" icon="fa-dove" color="bg-purple-50 text-purple-600" />
+          <MenuCard to="/songs" title="赞美之泉" desc="精选歌单" icon="fa-music" color="bg-rose-50 text-rose-600" />
+          <MenuCard to="/collection" title="复习中心" desc="记忆追踪" icon="fa-star" color="bg-amber-50 text-amber-600" />
         </div>
       </section>
     </div>
@@ -171,6 +171,6 @@ const MenuCard: React.FC<{ to: string, title: string, desc: string, icon: string
       <i className={`fa-solid ${icon} text-lg`}></i>
     </div>
     <h4 className="font-bold text-sm mb-1">{title}</h4>
-    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tighter">{desc}</p>
+    <p className="text-[10px] text-slate-400 leading-tight font-medium uppercase tracking-tighter">{desc}</p>
   </Link>
 );
