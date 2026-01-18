@@ -21,6 +21,7 @@ function cleanJsonResponse(text: string): string {
 }
 
 export function segmentsToText(segments: TextSegment[]): string {
+  if (!Array.isArray(segments)) return '';
   return segments.map(s => s.t).join('');
 }
 
@@ -39,6 +40,7 @@ export function playTTS(text: string, rate: number = 0.85): Promise<void> {
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
     window.speechSynthesis.speak(utterance);
+    // Fallback for some mobile browsers where onend never fires
     setTimeout(() => resolve(), 5000);
   });
 }
@@ -56,13 +58,23 @@ export async function fetchLearningContent(
 
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Search ${siteFilters[category]} for 1 entry (JLPT ${level}). Date: ${date}. Output structured Furigana segments.`,
+    contents: `Search ${siteFilters[category]} for 1 entry (JLPT ${level}) for date ${date}. Output structured segments for Furigana.`,
     config: {
       tools: [{ googleSearch: {} }],
-      systemInstruction: `Professional Japanese Tutor.
-      - Segment Format: { "t": "Text", "r": "Reading" }.
-      - NO JSON wrapper like "articles:". Direct array.
-      - Simplified Chinese for all summaries and translations.`,
+      systemInstruction: `Professional Japanese Teacher.
+      CRITICAL RULES:
+      1. MUST breakdown ALL Japanese text into: { "t": "Text", "r": "Reading" }.
+      2. If a segment is only Kana, "r" is optional or same as "t".
+      3. Return ONLY a JSON array of objects.
+      JSON structure: [{
+        "title": "Plain Text",
+        "titleSegments": [{"t":"日","r":"に"},{"t":"本","r":"ほん"}],
+        "summary": "Chinese Summary",
+        "sentences": [ [{"t":"今","r":"いま"},{"t":"日","r":"にち"}] ],
+        "translations": ["Chinese sentence"],
+        "vocabulary": [{"word":"今日","reading":"きょう","meaning":"今天"}],
+        "grammar": [{"point":"～は","explanation":"Topic","example":"これは本です"}]
+      }]`,
       responseMimeType: "application/json"
     }
   });
@@ -83,11 +95,10 @@ export async function fetchLearningContent(
 export async function fetchBibleVerses(): Promise<BibleVerse[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Provide 2 famous Japanese Bible verses with segments for Furigana and full grammar/vocab analysis.`,
+    contents: `Give 2 Japanese Bible verses with segment analysis for Furigana.`,
     config: {
-      systemInstruction: `Bible & Japanese Scholar.
-      - MUST output JapaneseSegments, Sentences (segments), Vocabulary, and Grammar.
-      - Format: [{"reference":"...","japaneseSegments":[{"t":"神","r":"かみ"}], ...}]`,
+      systemInstruction: `Bible Scholar. Return JSON array. 
+      Structure: [{"reference":"...","japaneseSegments":[{"t":"神","r":"かみ"}], "chineseTranslation":"...", "sentences": [[...]], "translations": ["..."], "vocabulary": [...], "grammar": [...]}]`,
       responseMimeType: "application/json"
     }
   });
@@ -103,13 +114,13 @@ export async function fetchBibleVerses(): Promise<BibleVerse[]> {
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Find 2 official Japanese worship songs by "Stream of Praise" (赞美之泉). Ensure YouTube URLs are working official links.`,
+    contents: `Find 2 official Japanese songs by "Stream of Praise Music Ministries" (赞美之泉). Search YouTube official channel.`,
     config: {
       tools: [{ googleSearch: {} }],
-      systemInstruction: `Music Expert.
-      - Find ONLY "Stream of Praise" (赞美之泉/小羊詩歌) official Japanese versions.
-      - YouTube URL MUST BE VALID and formatted as https://www.youtube.com/watch?v=VIDEO_ID.
-      - Segment ALL lyrics for Furigana.`,
+      systemInstruction: `Music Expert. 
+      - YouTube URL MUST BE official (e.g., https://www.youtube.com/watch?v=...).
+      - Breakdown ALL lyrics into Segments: {"t":"...","r":"..."}.
+      - Return JSON array.`,
       responseMimeType: "application/json"
     }
   });
@@ -120,9 +131,9 @@ export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
 export async function generateQuizzes(context: string): Promise<QuizQuestion[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Generate 5 Japanese quizzes based on: ${context}`,
+    contents: `Generate 5 Japanese quizzes based on: ${context}. Keep it simple JSON.`,
     config: { 
-        systemInstruction: "Generate JSON quizzes. No ruby tags, just plain Japanese.",
+        systemInstruction: "Generate JSON quizzes. Options and questions should be plain Japanese. No ruby tags.",
         responseMimeType: "application/json" 
     }
   });
