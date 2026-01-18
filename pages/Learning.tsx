@@ -36,7 +36,8 @@ export const Learning: React.FC = () => {
   const handleFetch = async (isAppend: boolean = false) => {
     setIsSyncing(true);
     try {
-      const news = await fetchLearningContent(activeCategory, selectedLevel, selectedDate, isAppend);
+      // Fixed: fetchLearningContent expects 3 arguments, removed isAppend which was the 4th
+      const news = await fetchLearningContent(activeCategory, selectedLevel, selectedDate);
       if (isAppend) {
         setArticles(prev => [...prev, ...news]);
       } else {
