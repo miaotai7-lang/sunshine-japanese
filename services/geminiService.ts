@@ -22,63 +22,56 @@ function cleanJsonResponse(text: string): string {
   return cleaned;
 }
 
-/**
- * 高质量日语语音播放
- * 自动过滤 <ruby> 注音标签，选择原生 ja-JP 语音包
- */
 export function playTTS(text: string, rate: number = 0.85): Promise<void> {
   return new Promise((resolve) => {
-    // 关键：移除注音部分 <rt>...</rt> 及其余 HTML
-    const cleanText = text
-      .replace(/<rt>.*?<\/rt>/g, '') // 移除假名注音
-      .replace(/<[^>]*>?/gm, '')    // 移除其余标签
-      .trim();
-    
+    const cleanText = text.replace(/<rt>.*?<\/rt>/g, '').replace(/<[^>]*>?/gm, '').trim();
     if (!cleanText) return resolve();
-
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    
-    // 强制筛选日语语音包
     const voices = window.speechSynthesis.getVoices();
     const jaVoice = voices.find(v => v.lang === 'ja-JP' && v.name.includes('Google')) || 
                     voices.find(v => v.lang === 'ja-JP') || 
                     voices.find(v => v.lang.startsWith('ja'));
-    
-    if (jaVoice) {
-      utterance.voice = jaVoice;
-    }
-    
+    if (jaVoice) utterance.voice = jaVoice;
     utterance.lang = 'ja-JP';
-    utterance.rate = rate; 
-    utterance.pitch = 1.0;
-    
+    utterance.rate = rate;
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
-    
     window.speechSynthesis.speak(utterance);
-    
-    // 5秒强制结束保护
     setTimeout(() => resolve(), 5000);
   });
 }
 
-const OPTIMIZED_INSTRUCTION = `Expert Japanese Educator. Rules: Output 5 JSON objects with <ruby> for all Kanji. Semantic tags: <span class="g-syntax">, <span class="g-particle">.`;
+/**
+ * 学习语料获取：支持等级选择，指定内容来源，每次 2 条
+ */
+export async function fetchLearningContent(
+  category: LearningCategory, 
+  level: JLPTLevel, 
+  date: string, 
+  isAppend: boolean = false
+): Promise<Article[]> {
+  const prompts = {
+    news: `Search for 2 latest Japanese news articles suitable for JLPT ${level} level.`,
+    forum: `Search for 2 real Japanese personal blog posts (from ameblo.jp or note.com) about daily life, suitable for JLPT ${level}.`,
+    trending: `Search for 2 latest Japanese slang words or idioms trending now, explaining their usage for JLPT ${level}.`
+  };
 
-export async function fetchLearningContent(category: LearningCategory, date: string, isAppend: boolean = false): Promise<Article[]> {
   const result = await callProxyAPI({
-    model: 'gemini-3-flash-preview',
-    contents: `Generate 5 Japanese ${category} articles for ${date}.`,
+    model: 'gemini-3-pro-preview',
+    contents: `${prompts[category]} for ${date}.`,
     config: {
-      systemInstruction: OPTIMIZED_INSTRUCTION,
-      responseMimeType: "application/json",
-      temperature: 0.2
+      tools: [{ googleSearch: {} }],
+      systemInstruction: `Expert Japanese Teacher. Output exactly 2 JSON objects. Use <ruby> for all Kanji. 
+      Structure: {title, summary, sentences:[], translations:[], level: "${level}", vocabulary:[], grammar:[]}.`,
+      responseMimeType: "application/json"
     }
   });
+
   const data = JSON.parse(cleanJsonResponse(result.text || "[]"));
   const articles = data.map((a: any, i: number) => ({ 
     ...a, 
-    id: isAppend ? `${category}-${date}-${i}-${Date.now()}` : `${category}-${date}-${i}`, 
+    id: `${category}-${level}-${date}-${i}-${Date.now()}`, 
     category, 
     date 
   }));
@@ -87,38 +80,38 @@ export async function fetchLearningContent(category: LearningCategory, date: str
 }
 
 /**
- * 歌曲抓取优化：指定来源并增加数量至 10 首
+ * 全网搜索赞美诗，每次 2 首
  */
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   try {
     const result = await callProxyAPI({
-      model: 'gemini-3-pro-preview', // 使用增强版以获得更好的搜索效果
-      contents: `Fetch exactly 10 real Japanese worship songs from the website: https://sanbikashi.net/hallelujah/. 
-      Search specifically for content in that domain. Provide lyrics with <ruby> and Chinese translations. 
-      Batch starting from offset ${offset}.`,
+      model: 'gemini-3-pro-preview',
+      contents: `Search the whole web for 2 real Japanese Christian worship songs. Provide full lyrics with <ruby> and Chinese translation. Offset: ${offset}.`,
       config: {
         tools: [{ googleSearch: {} }],
-        systemInstruction: `Japanese Worship Music Expert. Output JSON ARRAY of 10 objects. 
-        Structure: {title, artist, lyrics, translation, youtubeUrl}. 
-        IMPORTANT: Search the specific website for actual lyrics content.`,
+        systemInstruction: `Worship Music Expert. Output exactly 2 JSON objects in an array. 
+        Structure: {title, artist, lyrics, translation, youtubeUrl}.`,
         responseMimeType: "application/json"
       }
     });
-    const jsonStr = cleanJsonResponse(result.text || "[]");
-    const data = JSON.parse(jsonStr);
+    const data = JSON.parse(cleanJsonResponse(result.text || "[]"));
     return data.map((s: any, i: number) => ({ ...s, id: `song-${Date.now()}-${i}`, rank: offset + i + 1 }));
   } catch (e) {
-    console.error("Song fetch failed", e);
+    console.error("Song search failed", e);
     return [];
   }
 }
 
+/**
+ * 圣经金句获取，每次 2 句
+ */
 export async function fetchBibleVerses(excludeIds: string[] = []): Promise<BibleVerse[]> {
   const result = await callProxyAPI({
-    model: 'gemini-3-flash-preview',
-    contents: `5 inspiring Japanese Bible verses.`,
+    model: 'gemini-3-pro-preview',
+    contents: `Fetch 2 inspiring Japanese Bible verses.`,
     config: {
-      systemInstruction: `Expert Japanese Bible Scholar. JSON output. Use <ruby>.`,
+      tools: [{ googleSearch: {} }],
+      systemInstruction: `Bible Scholar. JSON output. 2 items. Use <ruby>.`,
       responseMimeType: "application/json"
     }
   });
@@ -131,11 +124,8 @@ export async function fetchBibleVerses(excludeIds: string[] = []): Promise<Bible
 export async function generateQuizzes(context: string): Promise<QuizQuestion[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `5 quizzes based on: ${context}`,
-    config: {
-      systemInstruction: `Expert Japanese Teacher. JSON output. Use <ruby>.`,
-      responseMimeType: "application/json"
-    }
+    contents: `Generate 5 quizzes based on: ${context}`,
+    config: { responseMimeType: "application/json" }
   });
   return JSON.parse(cleanJsonResponse(result.text || "[]"));
 }
