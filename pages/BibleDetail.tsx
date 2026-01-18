@@ -27,7 +27,8 @@ export const BibleDetail: React.FC = () => {
   const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
-    if (!verse && id) {
+    // Narrow id to string to satisfy type safety for getBibleVerseById
+    if (!verse && typeof id === 'string') {
       const cached = getBibleVerseById(id);
       if (cached) setVerse(cached);
     }
@@ -143,7 +144,7 @@ export const BibleDetail: React.FC = () => {
       <nav className="flex gap-2 p-1.5 bg-slate-100 rounded-3xl mb-8 overflow-x-auto no-scrollbar">
         {(['content', 'vocab', 'grammar'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 px-4 py-3 text-xs font-black rounded-2xl transition-all whitespace-nowrap ${activeTab === tab ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-400'}`}>
-            {tab === 'content' ? '经文拆解' : tab === 'vocab' ? `词汇` : `语法`}
+            {tab === 'content' ? '经文拆解' : tab === 'vocab' ? '词汇' : '语法'}
           </button>
         ))}
       </nav>
