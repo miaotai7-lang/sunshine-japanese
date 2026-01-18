@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Article, TextSegment } from '../types';
 import { playTTS, segmentsToText } from '../services/geminiService';
 import { getArticleById } from '../services/cacheService';
+import { toggleCollection, isCollected } from '../services/collectionService';
 
 export const ArticleDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +14,7 @@ export const ArticleDetail: React.FC = () => {
   const [showReadings, setShowReadings] = useState(true);
   const [showTranslation, setShowTranslation] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [, setUpdateTick] = useState(0); // 用于强制刷新收藏状态
 
   useEffect(() => {
     if (!article && id) {
@@ -29,8 +31,13 @@ export const ArticleDetail: React.FC = () => {
     setPlayingId(null);
   };
 
+  const handleToggleCollect = (type: any, content: any) => {
+    toggleCollection(type, content);
+    setUpdateTick(prev => prev + 1);
+  };
+
   const renderSegments = (segments: TextSegment[]) => {
-    return segments.map((seg, idx) => (
+    return (segments || []).map((seg, idx) => (
       <ruby key={idx}>
         {seg.t}
         {seg.r && <rt>{seg.r}</rt>}
@@ -71,27 +78,43 @@ export const ArticleDetail: React.FC = () => {
 
       <div className="space-y-4">
         {activeTab === 'content' && article.sentences.map((segments, i) => (
-          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex gap-4">
+          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4">
             <div className="flex-1">
               <p className="Japanese-text text-slate-800">{renderSegments(segments)}</p>
               {showTranslation && <p className="text-slate-400 text-sm mt-4 border-t pt-4 font-medium">{article.translations[i]}</p>}
             </div>
-            <button onClick={() => handleTTS(segments, `s-${i}`)} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${playingId === `s-${i}` ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-50 text-indigo-400'}`}>
-              <i className={`fa-solid ${playingId === `s-${i}` ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
-            </button>
+            <div className="flex justify-end gap-3 mt-2">
+              <button 
+                onClick={() => handleToggleCollect('sentence', { segments, translation: article.translations[i] })} 
+                className={`collect-btn w-10 h-10 rounded-xl flex items-center justify-center ${isCollected({ segments, translation: article.translations[i] }) ? 'bg-rose-50 text-rose-500 active' : 'bg-slate-50 text-slate-300'}`}
+              >
+                <i className={`fa-${isCollected({ segments, translation: article.translations[i] }) ? 'solid' : 'regular'} fa-heart`}></i>
+              </button>
+              <button onClick={() => handleTTS(segments, `s-${i}`)} className={`w-10 h-10 rounded-xl flex items-center justify-center ${playingId === `s-${i}` ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-400'}`}>
+                <i className={`fa-solid ${playingId === `s-${i}` ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
+              </button>
+            </div>
           </div>
         ))}
 
         {activeTab === 'vocab' && article.vocabulary.map((v, i) => (
           <div key={i} className="bg-white p-5 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
-            <div>
+            <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xl font-black text-slate-800">{v.word}</span>
                 <span className="text-[10px] font-black text-indigo-500 uppercase furigana">[{v.reading}]</span>
               </div>
               {showTranslation && <p className="text-sm text-slate-500 font-medium">{v.meaning}</p>}
             </div>
-            <button onClick={() => playTTS(v.word)} className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl"><i className="fa-solid fa-volume-high"></i></button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => handleToggleCollect('word', v)} 
+                className={`collect-btn w-9 h-9 rounded-xl flex items-center justify-center ${isCollected(v) ? 'bg-rose-50 text-rose-500 active' : 'bg-slate-50 text-slate-300'}`}
+              >
+                <i className={`fa-${isCollected(v) ? 'solid' : 'regular'} fa-heart text-xs`}></i>
+              </button>
+              <button onClick={() => playTTS(v.word)} className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><i className="fa-solid fa-volume-high text-xs"></i></button>
+            </div>
           </div>
         ))}
 
@@ -99,6 +122,12 @@ export const ArticleDetail: React.FC = () => {
           <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
              <div className="flex justify-between mb-2">
                 <span className="font-black text-indigo-600">{g.point}</span>
+                <button 
+                  onClick={() => handleToggleCollect('grammar', g)} 
+                  className={`collect-btn w-8 h-8 rounded-lg flex items-center justify-center ${isCollected(g) ? 'bg-rose-50 text-rose-500 active' : 'bg-slate-50 text-slate-300'}`}
+                >
+                  <i className={`fa-${isCollected(g) ? 'solid' : 'regular'} fa-heart text-[10px]`}></i>
+                </button>
              </div>
              <p className="text-sm text-slate-600 mb-4">{g.explanation}</p>
              <div className="bg-slate-50 p-4 rounded-2xl italic text-xs text-slate-500">例: {g.example}</div>
