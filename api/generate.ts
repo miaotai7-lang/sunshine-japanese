@@ -18,14 +18,15 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    // 强制使用传递过来的模型，默认为更快的 gemini-3-flash-preview
+    // Correct initialization as per guidelines: Always use the named parameter and process.env.API_KEY directly.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+    
+    // Use ai.models.generateContent to query GenAI with both the model name and prompt.
     const response = await ai.models.generateContent({
       model: model || 'gemini-3-flash-preview',
       contents,
       config: {
         ...genConfig,
-        // 降低思考成本，追求速度
         temperature: 0.7,
       },
     });
@@ -35,6 +36,7 @@ export default async function handler(req: any, res: any) {
     }
 
     return res.status(200).json({
+      // Access the .text property directly (not a method).
       text: response.text,
       candidates: response.candidates,
     });
@@ -47,6 +49,10 @@ export default async function handler(req: any, res: any) {
     if (error.message?.includes('429') || error.message?.includes('quota')) {
       message = '请求过于频繁，请稍后再试';
       status = 429;
+    } else if (error.message?.includes('404') || error.message?.includes('Requested entity was not found')) {
+      // Handle the "Requested entity was not found" error specifically as per guidelines.
+      message = '请求的 AI 资源不可用';
+      status = 404;
     } else if (error.message?.includes('timeout')) {
       message = '生成耗时过长，请重试';
       status = 504;
