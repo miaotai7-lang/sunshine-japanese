@@ -12,8 +12,19 @@ export const Learning: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
 
   const loadLocalCache = useCallback(() => {
-    const cached = getArticlesCache().filter(a => a.category === activeCategory && a.level === selectedLevel && a.date === selectedDate);
-    setArticles(cached);
+    try {
+      const cache = getArticlesCache();
+      const filtered = cache.filter(a => 
+        a && 
+        a.category === activeCategory && 
+        a.level === selectedLevel && 
+        a.date === selectedDate
+      );
+      setArticles(filtered);
+    } catch (e) {
+      console.error("Cache load error", e);
+      setArticles([]);
+    }
   }, [activeCategory, selectedLevel, selectedDate]);
 
   useEffect(() => {
@@ -21,20 +32,21 @@ export const Learning: React.FC = () => {
   }, [loadLocalCache]);
 
   const handleFetch = async () => {
+    if (isSyncing) return;
     setIsSyncing(true);
     try {
       const news = await fetchLearningContent(activeCategory, selectedLevel, selectedDate);
-      setArticles(news);
+      setArticles(news || []);
     } catch (e) {
       console.error(e);
-      alert('AI 抓取失败，请重试');
+      alert('AI 抓取失败，请检查网络或重试');
     } finally {
       setIsSyncing(false);
     }
   };
 
   return (
-    <div className="space-y-6 pb-24 animate-fadeIn">
+    <div className="space-y-6 pb-24 animate-fadeIn px-1">
       <header className="space-y-4">
         <div className="flex justify-between items-center px-1">
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">AI 语料库</h2>
@@ -46,12 +58,12 @@ export const Learning: React.FC = () => {
           />
         </div>
 
-        <div className="grid grid-cols-5 gap-2 px-1">
+        <div className="grid grid-cols-5 gap-2">
           {([JLPTLevel.N5, JLPTLevel.N4, JLPTLevel.N3, JLPTLevel.N2, JLPTLevel.N1] as const).map((lv) => (
             <button
               key={lv}
               onClick={() => setSelectedLevel(lv)}
-              className={`py-3 rounded-2xl font-black text-xs transition-all active:scale-90 ${
+              className={`py-3 rounded-2xl font-black text-xs transition-all active:scale-95 ${
                 selectedLevel === lv 
                   ? `${getLevelColor(lv)} shadow-lg shadow-indigo-100` 
                   : 'bg-white text-slate-400 border border-slate-100'
@@ -87,31 +99,36 @@ export const Learning: React.FC = () => {
            <div className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center bg-indigo-50 text-indigo-400`}>
               <i className="fa-solid fa-magnifying-glass text-2xl"></i>
            </div>
-           <p className="text-slate-400 text-sm font-bold mb-6">该日期语料需 AI 重新抓取<br/>{selectedDate} · {selectedLevel}</p>
+           <p className="text-slate-400 text-sm font-bold mb-6 leading-relaxed">该日期语料需 AI 重新抓取<br/>{selectedDate} · {selectedLevel}</p>
            <button onClick={handleFetch} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs shadow-xl active:scale-95">
-             立即启动 AI 溯时抓取
+             启动 AI 溯时抓取
            </button>
         </div>
       )}
 
       {isSyncing && (
-        <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 flex flex-col items-center gap-4 text-center shadow-sm animate-pulse">
+        <div className="bg-white p-12 rounded-[2.5rem] border border-slate-100 flex flex-col items-center gap-4 text-center shadow-sm">
            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-           <p className="text-indigo-600 font-black text-sm uppercase tracking-widest">AI Retrieving Data...</p>
+           <p className="text-indigo-600 font-black text-[10px] uppercase tracking-widest animate-pulse">AI Retrieving Data...</p>
         </div>
       )}
 
       <div className="space-y-4">
         {articles.map((article) => (
-          <Link key={article.id} to={`/learning/${article.id}`} state={{ article }} className="block bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all active:scale-[0.98]">
+          <Link 
+            key={article.id} 
+            to={`/learning/${article.id}`} 
+            state={{ article }} 
+            className="block bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
+          >
             <div className="flex items-center gap-2 mb-3">
                <span className={`text-[9px] px-2.5 py-1 rounded-full font-black ${getLevelColor(article.level)}`}>{article.level}</span>
                <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">{activeCategory}</span>
             </div>
             <h3 className="font-black text-lg mb-3 Japanese-text text-slate-800 leading-snug">{article.title}</h3>
-            <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed mb-4">{article.summary}</p>
+            <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed mb-4 font-medium">{article.summary}</p>
             <div className="text-indigo-600 text-[10px] font-black flex items-center gap-1 uppercase tracking-widest">
-              查看详情 <i className="fa-solid fa-arrow-right"></i>
+              开始研读 <i className="fa-solid fa-arrow-right ml-1"></i>
             </div>
           </Link>
         ))}
