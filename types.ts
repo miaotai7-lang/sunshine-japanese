@@ -10,19 +10,19 @@ export enum JLPTLevel {
 export type LearningCategory = 'news' | 'forum' | 'trending';
 
 export interface Vocabulary {
-  id: string;
+  id?: string;
   word: string;
   reading: string;
   meaning: string;
-  level: JLPTLevel;
+  level?: JLPTLevel;
 }
 
 export interface GrammarPoint {
-  id: string;
+  id?: string;
   point: string;
   explanation: string;
   example: string;
-  level: JLPTLevel;
+  level?: JLPTLevel;
 }
 
 export interface Article {
@@ -30,7 +30,7 @@ export interface Article {
   category: LearningCategory;
   title: string;
   summary: string;
-  content: string;
+  content?: string;
   sentences: string[]; 
   translations: string[]; 
   level: JLPTLevel;
@@ -75,7 +75,7 @@ export interface Song {
   rank: number;
   title: string;
   artist: string;
-  lyrics: string; // 带 <ruby> 的全量歌词
-  translation: string; // 全量中文翻译
+  lyrics: string; 
+  translation: string; 
   youtubeUrl: string;
 }
