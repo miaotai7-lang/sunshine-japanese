@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sunshine - AI 日语学习</title>
+    <title>閃閃開発 - AI 日语学习</title>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#4f46e5">
     
@@ -16,47 +16,25 @@
     <style>
         :root {
             --safe-bottom: env(safe-area-inset-bottom, 1rem);
-            --base-font-size: 1.125rem; /* 18px */
-            --ruby-font-size: 0.55em;
-            --grammar-color: #ef4444; /* 红色 */
-            --particle-color: #10b981; /* 绿色 */
-            --place-color: #92400e;   /* 褐色 */
+            --base-font-size: 1.125rem;
         }
         body {
             font-family: 'Noto Sans JP', sans-serif;
             background-color: #f8fafc;
             padding-bottom: calc(5rem + var(--safe-bottom)); 
         }
+        /* 强制隐藏任何可能漏网的 Ruby 注音 */
+        rt, rp {
+            display: none !important;
+        }
         ruby {
-            ruby-align: center;
-            ruby-position: over;
+            display: inline !important;
         }
-        ruby rt {
-            font-size: var(--ruby-font-size);
-            color: #6366f1;
-            user-select: none;
-            padding-bottom: 0.15em;
-        }
-        /* 语义化标记样式 */
-        .g-syntax { color: var(--grammar-color); font-weight: 700; }
-        .g-particle { color: var(--particle-color); font-weight: 500; }
-        .g-place { color: var(--place-color); font-weight: 600; text-decoration: underline decoration-dotted; }
-
-        .hide-colors .g-syntax, 
-        .hide-colors .g-particle, 
-        .hide-colors .g-place {
-            color: inherit !important;
-            font-weight: inherit !important;
-            text-decoration: none !important;
-        }
-
         .Japanese-text {
             font-size: var(--base-font-size) !important;
-            line-height: 2.8 !important; 
+            line-height: 1.8 !important; 
             word-break: break-all;
         }
-        .hide-furigana ruby rt { display: none !important; }
-        
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
