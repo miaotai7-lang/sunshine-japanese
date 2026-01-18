@@ -15,7 +15,7 @@ export const ArticleDetail: React.FC = () => {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [starred, setStarred] = useState<Set<string>>(new Set());
   
-  // 显隐控制状态
+  // 显隐控制
   const [showJapanese, setShowJapanese] = useState(true);
   const [showTranslation, setShowTranslation] = useState(true);
 
@@ -67,18 +67,18 @@ export const ArticleDetail: React.FC = () => {
     <div className="pb-24 animate-fadeIn">
       <div className="flex justify-between items-center mb-6 sticky top-0 bg-slate-50/90 backdrop-blur-md z-30 py-3">
         <button onClick={() => navigate(-1)} className="text-slate-400 text-sm font-bold flex items-center gap-2">
-          <i className="fa-solid fa-chevron-left"></i> 返回
+          <i className="fa-solid fa-chevron-left"></i>
         </button>
         <div className="flex gap-2">
            <button 
              onClick={() => setShowJapanese(!showJapanese)} 
-             className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${showJapanese ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-200 text-slate-400'}`}
+             className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${showJapanese ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}
            >
-             {showJapanese ? '隐藏假名汉字' : '显示假名汉字'}
+             {showJapanese ? '隐藏文字' : '显示文字'}
            </button>
            <button 
              onClick={() => setShowTranslation(!showTranslation)} 
-             className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${showTranslation ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-slate-200 text-slate-400'}`}
+             className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${showTranslation ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}
            >
              {showTranslation ? '隐藏翻译' : '显示翻译'}
            </button>
@@ -97,7 +97,7 @@ export const ArticleDetail: React.FC = () => {
       <nav className="flex gap-2 mb-8 p-1.5 bg-slate-200/50 rounded-3xl sticky top-14 z-20">
         {(['content', 'vocab', 'grammar'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 px-4 py-3 text-xs font-black rounded-2xl transition-all ${activeTab === tab ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500'}`}>
-            {tab === 'content' ? '正文阅读' : tab === 'vocab' ? '核心词汇' : '语法要点'}
+            {tab === 'content' ? '正文' : tab === 'vocab' ? '核心词' : '语法'}
           </button>
         ))}
       </nav>
@@ -116,7 +116,7 @@ export const ArticleDetail: React.FC = () => {
                          {article.translations?.[i]}
                       </p>
                    </div>
-                   <button onClick={() => handleTTS(sentence, `s-${i}`)} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${playingId === `s-${i}` ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-400'}`}>
+                   <button onClick={() => handleTTS(sentence, `s-${i}`)} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${playingId === `s-${i}` ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-50 text-indigo-400'}`}>
                      <i className={`fa-solid ${playingId === `s-${i}` ? 'fa-circle-notch fa-spin' : 'fa-volume-high'}`}></i>
                    </button>
                 </div>
@@ -139,7 +139,7 @@ export const ArticleDetail: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => toggleStar(v, 'word')} className={`${starred.has(String(v.id || v.word)) ? 'text-amber-500' : 'text-slate-300'} transition-all px-2`}>
+                  <button onClick={() => toggleStar(v, 'word')} className={`${starred.has(String(v.id || v.word)) ? 'text-amber-500' : 'text-slate-300'} transition-all px-2 text-xl`}>
                     <i className="fa-solid fa-star"></i>
                   </button>
                   <button onClick={() => handleTTS(v.reading || v.word, `v-${i}`)} className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600">
