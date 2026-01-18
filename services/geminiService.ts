@@ -117,10 +117,15 @@ export async function fetchBibleVerses(): Promise<BibleVerse[]> {
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Find 2 official Japanese songs by "Stream of Praise Music Ministries" (赞美之泉). Search YouTube official channel.`,
+    contents: `Search for 2 popular Japanese songs or hymns suitable for learning. Find official or high-quality YouTube links.`,
     config: {
       tools: [{ googleSearch: {} }],
-      systemInstruction: `Music Expert. Find official YouTube links. Breakdown ALL lyrics into Segments: {"t":"...","r":"..."}.`,
+      systemInstruction: `Music & Japanese Expert. 
+      - Find any popular Japanese songs (can include Stream of Praise, popular J-pop ballads, or classic hymns).
+      - YouTube URL MUST BE VALID (prefer official channel). 
+      - FORMAT: https://www.youtube.com/watch?v=VIDEO_ID.
+      - Breakdown ALL lyrics into Segments: {"t":"...","r":"..."}.
+      - Return JSON array of Song objects.`,
       responseMimeType: "application/json"
     }
   });
