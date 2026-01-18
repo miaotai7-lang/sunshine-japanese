@@ -20,6 +20,11 @@ export const getLevelColor = (level: JLPTLevel | string) => {
 
 export type LearningCategory = 'news' | 'forum' | 'trending';
 
+export interface TextSegment {
+  t: string; // text (kanji or kana)
+  r?: string; // reading (furigana)
+}
+
 export interface Vocabulary {
   id?: string;
   word: string;
@@ -40,26 +45,36 @@ export interface Article {
   id: string;
   category: LearningCategory;
   title: string;
+  titleSegments?: TextSegment[];
   summary: string;
-  content?: string;
-  sentences: string[]; 
+  sentences: TextSegment[][]; // Array of sentences, each is an array of segments
   translations: string[]; 
   level: JLPTLevel;
   vocabulary: Vocabulary[];
   grammar: GrammarPoint[];
   date: string; 
-  sourceUrl?: string;
 }
 
 export interface BibleVerse {
   id: string;
   reference: string;
   japaneseText: string;
+  japaneseSegments: TextSegment[];
   chineseTranslation: string;
-  sentences: string[]; 
+  sentences: TextSegment[][]; 
   translations: string[]; 
   vocabulary: Vocabulary[];
   grammar: GrammarPoint[];
+}
+
+export interface Song {
+  id: string;
+  rank: number;
+  title: string;
+  artist: string;
+  lyricsSegments: TextSegment[][]; // Lines -> Segments
+  translation: string; 
+  youtubeUrl: string;
 }
 
 export interface QuizQuestion {
@@ -79,14 +94,4 @@ export interface CollectionItem {
   addedAt: number;
   nextReviewAt: number;
   reviewStage: number;
-}
-
-export interface Song {
-  id: string;
-  rank: number;
-  title: string;
-  artist: string;
-  lyrics: string; 
-  translation: string; 
-  youtubeUrl: string;
 }
