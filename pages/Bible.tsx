@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { fetchBibleVerses } from '../services/geminiService';
 import { getBibleCache } from '../services/cacheService';
@@ -34,7 +33,6 @@ export const Bible: React.FC = () => {
   const loadMore = async () => {
     setLoadingMore(true);
     try {
-      // Fixed: fetchBibleVerses expects 0 arguments, removed excludeIds which was the 1st
       const more = await fetchBibleVerses();
       setVerses(prev => [...prev, ...more]);
     } catch (e) {
@@ -43,8 +41,19 @@ export const Bible: React.FC = () => {
     setLoadingMore(false);
   };
 
+  const renderSegments = (segments: any) => {
+    if (typeof segments === 'string') return segments;
+    if (!Array.isArray(segments)) return '';
+    return segments.map((seg, idx) => (
+      <ruby key={idx}>
+        {seg.t}
+        {seg.r && <rt>{seg.r}</rt>}
+      </ruby>
+    ));
+  };
+
   return (
-    <div className={`space-y-6 animate-fadeIn pb-24 ${showFurigana ? '' : 'hide-furigana'}`}>
+    <div className={`space-y-6 animate-fadeIn pb-24 px-1 ${!showFurigana ? 'hide-readings' : ''}`}>
       <header className="flex justify-between items-end px-1">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">圣经名句</h2>
@@ -74,11 +83,13 @@ export const Bible: React.FC = () => {
             className="block bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-sm hover:border-purple-200 transition-all group overflow-hidden"
           >
             <div className="flex justify-between items-center mb-4">
-              <span className="text-[10px] font-black px-3 py-1 rounded-xl bg-purple-50 text-purple-600 border border-purple-100" dangerouslySetInnerHTML={{ __html: verse.reference }}></span>
+              <span className="text-[10px] font-black px-3 py-1 rounded-xl bg-purple-50 text-purple-600 border border-purple-100">{verse.reference}</span>
               <i className="fa-solid fa-chevron-right text-slate-200 group-hover:text-purple-300 transition-colors"></i>
             </div>
-            <p className="text-slate-800 font-bold mb-4 leading-relaxed Japanese-text" dangerouslySetInnerHTML={{ __html: verse.japaneseText }}></p>
-            <p className="text-slate-400 text-xs italic border-t border-slate-50 pt-4">{verse.chineseTranslation}</p>
+            <div className="text-slate-800 font-bold mb-4 leading-relaxed Japanese-text">
+              {verse.japaneseSegments ? renderSegments(verse.japaneseSegments) : verse.japaneseText}
+            </div>
+            <p className="text-slate-400 text-xs italic border-t border-slate-50 pt-4 font-medium leading-relaxed">{verse.chineseTranslation}</p>
           </Link>
         ))}
       </div>
@@ -89,7 +100,12 @@ export const Bible: React.FC = () => {
           disabled={loadingMore} 
           className="w-full bg-white border-2 border-purple-100 text-purple-600 font-black py-5 rounded-[2rem] shadow-sm active:scale-95 flex items-center justify-center gap-2"
         >
-          {loadingMore ? 'AI 正在同步...' : '再搜索 2 句名言'}
+          {loadingMore ? (
+            <div className="flex items-center gap-2">
+               <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+               <span>AI 正在研读...</span>
+            </div>
+          ) : '再检索 2 句名言'}
         </button>
       )}
     </div>
