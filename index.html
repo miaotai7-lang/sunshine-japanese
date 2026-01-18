@@ -21,31 +21,34 @@
             font-family: 'Noto Sans JP', sans-serif;
             background-color: #f8fafc;
             padding-bottom: calc(5rem + var(--safe-bottom)); 
+            -webkit-tap-highlight-color: transparent;
         }
+        /* 强制 Ruby 标签样式，确保移动端显示 */
         ruby {
             display: inline-flex;
             flex-direction: column-reverse;
             align-items: center;
             vertical-align: bottom;
-            margin: 0 0.05rem;
+            margin: 0 0.02rem;
             line-height: 1.1;
         }
         rt {
             display: block;
-            font-size: 0.65rem;
-            line-height: 1.2;
+            font-size: 0.6rem;
+            line-height: 1;
             font-weight: 700;
             color: #6366f1;
             text-align: center;
-            min-height: 1.2em;
+            min-height: 1.1em;
             visibility: visible;
+            font-family: sans-serif;
         }
         .hide-readings rt {
             visibility: hidden;
         }
         .Japanese-text {
             font-size: var(--base-font-size) !important;
-            line-height: 2.2 !important; 
+            line-height: 2.3 !important; 
             word-break: break-all;
         }
         .collect-btn {
@@ -53,9 +56,9 @@
         }
         .collect-btn.active {
             color: #f43f5e;
-            transform: scale(1.2);
+            transform: scale(1.1);
         }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
     </style>
 <script type="importmap">
