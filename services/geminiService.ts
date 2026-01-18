@@ -20,7 +20,6 @@ function cleanJsonResponse(text: string): string {
   return cleaned;
 }
 
-// 辅助函数：将 TextSegment 数组转为纯文本用于语音合成
 export function segmentsToText(segments: TextSegment[]): string {
   return segments.map(s => s.t).join('');
 }
@@ -57,21 +56,13 @@ export async function fetchLearningContent(
 
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Search ${siteFilters[category]} for 1 entry (JLPT ${level}). Date: ${date}.`,
+    contents: `Search ${siteFilters[category]} for 1 entry (JLPT ${level}). Date: ${date}. Output structured Furigana segments.`,
     config: {
       tools: [{ googleSearch: {} }],
       systemInstruction: `Professional Japanese Tutor.
-      MANDATORY: Breakdown ALL Japanese text into segments for Furigana.
-      Segment Format: { "t": "Kanji", "r": "Reading" }. If no kanji, "r" is optional.
-      JSON structure: [{
-        "title": "Plain Text Title",
-        "titleSegments": [{"t":"日","r":"に"},{"t":"本","r":"ほん"}],
-        "summary": "Chinese summary",
-        "sentences": [ [{"t":"今","r":"いま"},{"t":"日","r":"にち"}] ], 
-        "translations": ["Chinese translation"],
-        "vocabulary": [{"word":"今日","reading":"きょう","meaning":"今天"}],
-        "grammar": [{"point":"～は","explanation":"主题","example":"これは本です"}]
-      }]`,
+      - Segment Format: { "t": "Text", "r": "Reading" }.
+      - NO JSON wrapper like "articles:". Direct array.
+      - Simplified Chinese for all summaries and translations.`,
       responseMimeType: "application/json"
     }
   });
@@ -92,21 +83,11 @@ export async function fetchLearningContent(
 export async function fetchBibleVerses(): Promise<BibleVerse[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Provide 2 famous Japanese Bible verses with full analysis.`,
+    contents: `Provide 2 famous Japanese Bible verses with segments for Furigana and full grammar/vocab analysis.`,
     config: {
-      systemInstruction: `Bible & Japanese Scholar. 
-      Analyze vocabulary and grammar. Output structured segments for Furigana.
-      Segment Format: { "t": "Text", "r": "Reading" }.
-      JSON structure: [{
-        "reference": "Chapter Verse",
-        "japaneseText": "Full text",
-        "japaneseSegments": [{"t":"神","r":"かみ"}],
-        "chineseTranslation": "Chinese text",
-        "sentences": [ [{"t":"神","r":"かみ"}] ],
-        "translations": ["Chinese line"],
-        "vocabulary": [{"word":"神","reading":"かみ","meaning":"上帝"}],
-        "grammar": [{"point":"AはB","explanation":"判别式","example":"私は神です"}]
-      }]`,
+      systemInstruction: `Bible & Japanese Scholar.
+      - MUST output JapaneseSegments, Sentences (segments), Vocabulary, and Grammar.
+      - Format: [{"reference":"...","japaneseSegments":[{"t":"神","r":"かみ"}], ...}]`,
       responseMimeType: "application/json"
     }
   });
@@ -122,19 +103,13 @@ export async function fetchBibleVerses(): Promise<BibleVerse[]> {
 export async function fetchTopSongs(offset: number = 0): Promise<Song[]> {
   const result = await callProxyAPI({
     model: 'gemini-3-flash-preview',
-    contents: `Find 2 official Japanese worship songs from "Stream of Praise". YouTube URL MUST BE VALID.`,
+    contents: `Find 2 official Japanese worship songs by "Stream of Praise" (赞美之泉). Ensure YouTube URLs are working official links.`,
     config: {
       tools: [{ googleSearch: {} }],
-      systemInstruction: `Music & Japanese Expert.
-      Break lyrics into lines of Segments: { "t": "Text", "r": "Reading" }.
-      YouTube URL must be a direct working link.
-      JSON structure: [{
-        "title": "Song Title",
-        "artist": "Artist Name",
-        "lyricsSegments": [ [{"t":"愛","r":"あい"}] ],
-        "translation": "Full Chinese translation",
-        "youtubeUrl": "https://www.youtube.com/watch?v=..."
-      }]`,
+      systemInstruction: `Music Expert.
+      - Find ONLY "Stream of Praise" (赞美之泉/小羊詩歌) official Japanese versions.
+      - YouTube URL MUST BE VALID and formatted as https://www.youtube.com/watch?v=VIDEO_ID.
+      - Segment ALL lyrics for Furigana.`,
       responseMimeType: "application/json"
     }
   });
@@ -147,7 +122,7 @@ export async function generateQuizzes(context: string): Promise<QuizQuestion[]> 
     model: 'gemini-3-flash-preview',
     contents: `Generate 5 Japanese quizzes based on: ${context}`,
     config: { 
-        systemInstruction: "Generate JSON quizzes. Options and questions should be plain Japanese.",
+        systemInstruction: "Generate JSON quizzes. No ruby tags, just plain Japanese.",
         responseMimeType: "application/json" 
     }
   });
